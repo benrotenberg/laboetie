@@ -41,10 +41,10 @@ We are researchers: our work is evaluated on the basis of citations to our publi
       Adelchi J. Asta, Maximilien Levesque, Rodolphe Vuilleumier and Benjamin Rotenberg  
       Phys. Rev. E 95, 061301 (2017)  
       https://dx.doi.org/10.1103/PhysRevE.95.061301
-  6. **Lattice Boltzmann electrokinetics simulation of nanocapacitors**
-      Adelchi J. Asta, Ivan Palaia, Emmanuel Trizac, Maximilien Levesque and Benjamin Rotenberg 
-      J. Chem. Phys., 151, 114104 (2019)
-      https://doi.org/10.1063/1.5119341
+  6. **Lattice Boltzmann electrokinetics simulation of nanocapacitors**  
+      Adelchi J. Asta, Ivan Palaia, Emmanuel Trizac, Maximilien Levesque and Benjamin Rotenberg  
+      J. Chem. Phys., 151, 114104 (2019)  
+      https://doi.org/10.1063/1.5119341  
 
 ---
 
