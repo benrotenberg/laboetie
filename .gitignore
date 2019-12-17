@@ -11,3 +11,13 @@ output
 chromato_generator
 vmdscenes*
 build
+output
+mod
+obj
+build
+manual
+*.mod
+src/*.mod
+src/trash
+CodeValidation.py
+laboetie

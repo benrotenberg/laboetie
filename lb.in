@@ -5,12 +5,31 @@
 
 lx = 1
 ly = 1
-lz = 102
-geometryLabel = 1  # 1 => slit pore; 0 => geom.in; 11 => geom.pbm
+lz = 48
+geometryLabel = 1
+SolidSheetsEachSideOfSlit = 3
 f_ext = 0.0  0.0  0.0
 
-#relaxation_time = 1.0
-#first_order_only = F
-#write_total_mass_flux = T
-#print_fequency = 1000
-#print_files_frequency = 1000
+target_error = 1.0e-10
+LB1 = 1
+UB1 = 2
+LB2 = 1
+UB2 = 2
+Constant_Potential = 1
+FixedPotentialUP = 0.2
+FixedPotentialDOWN = 0.1
+RestartPNP = T
+write_total_mass_flux = T
+capacitor = 0
+slit_sol = 0
+print_every = 500
+tot_sol_charge = 0.0
+timestepmax_for_PoissonNernstPlanck = 1000000
+bjl = 0.8
+lambda_D = 3.0
+lncb_slope = 0.0  0.0  0.0
+charge_distrib = int
+D_plus = 0.05
+D_minus = 0.05
+D_iter = 1
+elec_slope = 0.0 0.0 0.0

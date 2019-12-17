@@ -2,8 +2,8 @@
 
 ---
 
-laboetie is a computational fluid dynamics code for chemical applications.  
-It uses the Lattice-Boltzmann algorithm.  
+laboetie is the fluid dynamics code for chemical applications.  
+It is based on the Lattice-Boltzmann algorithm to solve fluid dynamics equations.  
 [more to come]
 
 It is written by Maximilien Levesque¹ and Benjamin Rotenberg²  
@@ -19,7 +19,7 @@ We are researchers: our work is evaluated on the basis of citations to our publi
 
 ------
 
-## Research papers about or using laboetie
+## Science done with laboetie
 
   1. **Accounting for adsorption and desorption in lattice Boltzmann simulations**  
       Maximilien Levesque, Magali Duvail, Ignacio Pagonabarraga, Daan Frenkel and Benjamin Rotenberg  
@@ -28,11 +28,7 @@ We are researchers: our work is evaluated on the basis of citations to our publi
   2. **Unexpected coupling between flow and adsorption in porous media**  
      Jean-Mathieu Vanson, François-Xavier Coudert, Benjamin Rotenberg, Maximilien Levesque, Caroline Tardivat, Michaela Klotz and Anne Boutin  
      Soft Matter 11, 6125-6133 (2015)  
-     http://dx.doi.org/10.1039/C5SM01348H   
-  3. **Computational Chemistry Methods for Nanoporous Materials**   
-     Jack D. Evans, Guillaume Fraux, Romain Gaillac, Daniela Kohen, Fabien Trousselet, Jean-Mathieu Vanson and François-Xavier Coudert   
-     Chemistry of Materials 29, 199 (2017)   
-     http://dx.doi.org/10.1021/acs.chemmater.6b02994    
+     http://dx.doi.org/10.1039/C5SM01348H  
   3. **Transport and adsorption under liquid flow: the role of pore geometry**  
       Jean-Mathieu Vanson, Anne Boutin, Michaela Klotz and François-Xavier Coudert  
       Soft Matter 13, 875-885 (2017)  
@@ -40,28 +36,47 @@ We are researchers: our work is evaluated on the basis of citations to our publi
   4. **Kinetic Accessibility of Porous Material Adsorption Sites Studied through the Lattice Boltzmann Method**  
       Jean-Mathieu Vanson, François-Xavier Coudert, Michaela Klotz and Anne Boutin  
       Langmuir 33, 1405-1411 (2017)  
-      http://dx.doi.org/10.1021/acs.langmuir.6b04472   
+      http://dx.doi.org/10.1021/acs.langmuir.6b04472  
   5. **Transient hydrodynamic finite size effects in simulations under periodic boundary conditions**  
       Adelchi J. Asta, Maximilien Levesque, Rodolphe Vuilleumier and Benjamin Rotenberg  
       Phys. Rev. E 95, 061301 (2017)  
-      https://dx.doi.org/10.1103/PhysRevE.95.061301     
-  6. **Moment propagation method for the dynamics of charged adsorbing/desorbing species at solid-liquid interfaces**  
-      Adelchi Asta, Maximilien Levesque and Benjamin Rotenberg  
-      Molecular Physics, Frenkel Special Issue (2018)  
-      https://doi.org/10.1080/00268976.2018.1461944     
-           
+      https://dx.doi.org/10.1103/PhysRevE.95.061301
+  6. **Lattice Boltzmann electrokinetics simulation of nanocapacitors**
+      Adelchi J. Asta, Ivan Palaia, Emmanuel Trizac, Maximilien Levesque and Benjamin Rotenberg 
+      J. Chem. Phys., 151, 114104 (2019)
+      https://doi.org/10.1063/1.5119341
 
 ---
 
 ## Installation instructions
 
+The prefered way is to use CMake.  If you have CMake on your computer, then: 
 ```sh
 git clone https://github.com/maxlevesque/laboetie
 cd laboetie
-make
+mkdir build
+cd build
+cmake ..
+make -j
 ```
 
-## Parallelism
+If you don't have CMake:
+```sh
+git clone https://github.com/maxlevesque/laboetie
+cd laboetie
+make -j
+```
+
+## Git, github, issues etc.
+
+[A successful git branching model](http://nvie.com/posts/a-successful-git-branching-model/)
+
+[How to reports bugs effectively](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html)
+
+[How to write a git commit message](http://chris.beams.io/posts/git-commit/)
+
+
+### Parallelism
 
 The moment propagation is parallelized. It uses the OPENMP API. It is enabled by default (see `-fopenmp` in the Makefile).  
 To disable openmp parallelism, remove `-fopenmp` from line 13 of Makefile.
@@ -154,15 +169,3 @@ The color code is:
 * `pink` Solid nodes
 * `green` Interfacial fluid nodes, i.e., fluid nodes close to a solid node
 * `white` Non-interfacial fluid nodes
-
-
-## How to develop in laboetie or report a bug
-
-### Our git workflow
-
-[A successful git branching model](http://nvie.com/posts/a-successful-git-branching-model/)
-
-### How to Report Bugs Effectively
-
-[A blogpost by Simon Tatham](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html)
-
