@@ -18,12 +18,9 @@ module system
     REAL(dp), ALLOCATABLE, DIMENSION(:,:,:,:) :: n
 
 
-
-
-
     ! time
-    integer(i2b) :: time ! time in simu, from 0 to tmax
-    integer(i2b) :: t_equil, tmom, tmax ! 0->t_equil; t_equil->tmom; t_mom->tmax
+    integer(i2b) :: time, t ! time in simu, from 0 to tmax
+    integer(i2b) :: tmom, tmax !;t_mom->tmax
     ! equilibration
     integer(i2b) :: D_equil ! number of equilibration steps whithout constraints nor flux
     integer(i2b) :: D_iter
@@ -44,10 +41,8 @@ module system
 
     type type_latticenode
         integer(kind(fluid)) :: nature ! solid liquid
-!        real(dp), dimension(x:z) :: normal ! vector normal to interface if interfacial site
         logical :: isInterfacial
-        real(dp) :: solventDensity ! mass rho
-        real(dp), dimension(x:z) :: solventFlux ! flux j
+        logical :: isFixedPotential
     end type
 
     type type_supercell
@@ -71,22 +66,24 @@ module system
 
     real(dp), allocatable, dimension(:,:,:) :: flux_site_plus, flux_site_minus
     real(dp) :: anormf0
-
+    real(dp), parameter :: A_zero = 1.0_dp + 2.0_dp*(2.0_dp)**(0.5) ! Factor due to geometry of the system. Works for D3Q19. Needed in smolu and just_eq_smolu
+    
     ! electrostatic related
-    real(dp) :: bjl ! Bjerum length
+    real(dp) :: bjl ! Bjerrum length
     real(dp) :: lambda_D ! debye length. <0 means salt free fluid
-    real(dp) :: sigma ! sigma is the number of charges the user want to put in solid and surface. read from input file.
+    real(dp) :: tot_sol_charge ! tot_sol_charge is the number of charges the user want to put in solid and surface. read from input file.
     real(dp) :: D_plus, D_minus ! diffusion coefficient of ions
     real(dp), allocatable, dimension(:,:,:) :: c_plus, c_minus ! concentrations
     real(dp), allocatable, dimension(:,:,:) :: phi ! internal potential (calculated by the sucessive overrelaxation methode)
+    real(dp), allocatable, dimension(:,:,:) :: LaplacianOfPhi 
     real(dp), allocatable, dimension(:,:,:) :: phi2 ! DONT KNOW WHAT IT IS FOR. IT IS USED IN ELEC_POT, CALLED DURING TRACER MOMENT PROPAGATION, BUT COMPLETELY USELESS
     real(dp), allocatable, dimension(:,:,:) :: phi_tot ! total electrostatic potential = phi + phi external
     real(dp), allocatable, dimension(:,:,:) :: phi_old, c_plus_old, c_minus_old ! backups of phi, c_plus and c_minus at previous steps for checking convergence
     character(len=3) :: charge_distrib
     real(dp), dimension(x:z) :: elec_slope, lncb_slope
     real(dp) :: el_curr_x, el_curr_y, el_curr_z
-    real(dp) :: ion_curr_x, ion_curr_y, ion_curr_z
-    real(dp) :: rho_ch ! charge density?
+    real(dp) :: ion_curr_x, ion_curr_y, ion_curr_z, cations_NEcurr, anions_NEcurr
+    real(dp) :: rho_0 ! Charge (ie solute) density in lb units
     ! external force given by user
     real(dp), dimension(x:z) :: f_ext ! external force (constraints) applied to flux
     real(dp), allocatable, dimension(:,:,:,:) :: solute_force ! (lx, ly, lz, 3)

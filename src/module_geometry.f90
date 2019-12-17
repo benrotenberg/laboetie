@@ -3,51 +3,11 @@ module geometry
     use precision_kinds ! all precision kinds defined in the dedicated module
     use system, only: fluid, solid, supercell, node
     use constants, only: x, y, z
+    use module_input, only: getinput
 
     implicit none
 
 contains
-
-subroutine CONSTRUCT_XUDONG_VINCENT_MARIE_CYL_BETWEEN_WALLS
-            real(dp), dimension(1:2, 1:4) :: r ! there are 7 cylinders in the supercell, whose only x and y (1:2) coordinates are important
-            ! lx is the half of the big size of the hexagon == length/2
-            ! ly is the small size of the hexagone = length*sqrt(3)/2 = lx*sqrt(3)
-            integer(i2b) :: i, j, k
-            real(dp) :: midx, midy, cylinderRadius, radialDistanceToCylinderCenter
-            logical :: isInCylinders
-            integer(i2b) :: lx, ly, lz
-            lx = supercell%geometry%dimensions%indiceMax(x)
-            ly = supercell%geometry%dimensions%indiceMax(y)
-            lz = supercell%geometry%dimensions%indiceMax(z)
-            if( abs(real(ly)/real(lx)-sqrt(3.))/sqrt(3.) >= 0.05 ) then
-                print*, 'STOP. ly shoud be lx *sqrt(3). Ly should be',lx*sqrt(3.)
-                stop
-            end if
-            if( lz < 3 ) stop 'Lz should be greater than 2 because there are two walls. STOP'
-            midx = real(lx+1,dp)/2._dp
-            midy = real(ly+1,dp)/2._dp
-            r(:,1) = [ 1._dp, midy ]
-            r(:,2) = [ real(lx,dp), midy ]
-            r(:,3) = [ midx, 1._dp ]
-            r(:,4) = [ midx, real(ly,dp) ]
-            cylinderRadius = 0.2_dp * real(lx,dp)
-            do i = 1, lx
-                do j = 1, ly
-                    isInCylinders = .false.
-                    checkincyl: do k = lbound(r,2), ubound(r,2)
-                        radialDistanceToCylinderCenter = norm2(  [i,j] - r(1:2,k) )
-                        if ( radialDistanceToCylinderCenter <= cylinderRadius ) then
-                            isInCylinders = .true.
-                            exit checkincyl
-                        end if
-                    end do checkincyl
-                if( isInCylinders ) node(i,j,:)%nature = solid
-                end do
-            end do
-            node(:,:,1)%nature = solid
-            node(:,:,lz)%nature = solid
-end subroutine CONSTRUCT_XUDONG_VINCENT_MARIE_CYL_BETWEEN_WALLS
-
 
 SUBROUTINE CONSTRUCT_TUBE_WITH_VARYING_DIAMETER
 ! construct the system described in Makhnovskii et al., Chem. Phys. 367, 110 (2010)
@@ -153,19 +113,24 @@ SUBROUTINE CONSTRUCT_SINUSOIDAL_WALLS_2D
 END SUBROUTINE CONSTRUCT_SINUSOIDAL_WALLS_2D
 
 
-
-
-SUBROUTINE construct_slit
+SUBROUTINE construct_slit_Nsheets(n)
     IMPLICIT NONE
-    INTEGER(i2b) :: i, j
+    INTEGER, INTENT(IN) :: n
+    INTEGER :: i, j, k
     i = LBOUND( node%nature, 3)
     j = UBOUND( node%nature, 3)
     node%nature = fluid
-    node(:,:,i)%nature = solid ! the lower bound of the thrid dimension of inside is solid
-    node(:,:,j)%nature = solid ! so is the upper bound
+    do k = 0, n-1
+        node(:,:,i+k)%nature = solid
+        node(:,:,j-k)%nature = solid
+    end do
+    ! node(:,:,i)%nature = solid   ! The lower bound of the third dimension is the first solid sheet
+    ! node(:,:,i+1)%nature = solid ! the second sheet, etc.
+    ! ...
+    ! node(:,:,j)%nature = solid   ! Same for the upper bound
+    ! node(:,:,j-1)%nature = solid ! the sheet before the upper bound is solid
+    ! ...
 END SUBROUTINE
-
-
 
 
 
@@ -206,7 +171,7 @@ END SUBROUTINE CONSTRUCT_SPHERICAL_CAVITY
 SUBROUTINE CONSTRUCT_CC
   implicit none
   integer(i2b) :: i,j,k ! dummy
-              integer(i2b) :: lx, ly, lz
+  integer(i2b) :: lx, ly, lz
             lx = supercell%geometry%dimensions%indiceMax(x)
             ly = supercell%geometry%dimensions%indiceMax(y)
             lz = supercell%geometry%dimensions%indiceMax(z)
@@ -254,7 +219,7 @@ SUBROUTINE CONSTRUCT_CYLINDER
   implicit none
   real(dp) :: radius ! radius of cylinder
   real(dp), dimension(2) :: rnode, rorigin ! coordinates of each node and center of cylinder in x,y coordinates
-  integer(i2b) :: i, j ! dummy
+  integer(i2b) :: i, j, width ! dummy
             integer(i2b) :: lx, ly, lz
             lx = supercell%geometry%dimensions%indiceMax(x)
             ly = supercell%geometry%dimensions%indiceMax(y)
@@ -262,7 +227,11 @@ SUBROUTINE CONSTRUCT_CYLINDER
   if( lx /= ly) stop 'wall=2 is for cylinders, which should have same lx and ly'
   if( lx<3 ) stop 'the diameter of the cylinder (lx) should be greater than 3'
   rorigin = [ real(lx+1,dp)/2.0_dp, real(ly+1,dp)/2.0_dp ]
-  radius = real(lx-1,dp)/2.0_dp
+  width = getinput%int("width", defaultvalue=2) ! Ade : solid width. This parameter is used to make smaller tubes
+                                                ! within our box of simulation. This is usefull as error increases
+                                                ! if w/2 = delta_x. Error is small if w/2 = 50*delta_x. Please read
+                                                ! Amael Obliger thesis p 46.
+  radius = real(lx-width,dp)/2.0_dp
 
   do i = 1, lx
     do j = 1, ly
@@ -276,106 +245,47 @@ SUBROUTINE CONSTRUCT_CYLINDER
   end do
 END SUBROUTINE CONSTRUCT_CYLINDER
 
-
-
-
-
-
-
-
-
-SUBROUTINE CONSTRUCT_SPHERE_BENICHOU
-! this program computes the time-dependent diffusion coefficient
-! of a tri-dimensional system. it is a test of Olivier Benichou's
-! problem as expressed during the unformal discussion in PECSA
-! to present him the numerical results of LB with sorption.
-! The system is a circle, in which four entrances (exit) are found
-! at 0, 3, 6 and 9", and in front and bottom. (like at center of faces of tangeantial cube)
-!
-!ooooo ooooo
-!ooo     ooo
-!oo       oo
-!o         o
-!o         o
-!
-!o         o
-!o         o
-!oo       oo
-!ooo     ooo
-!ooooo ooooo
-
-! Note the four exits at 0, 3, 6 and 9", bottom and behind
-  real(dp) :: radius ! radius of cylinder
-  real(dp), dimension(3) :: rnode, rorigin ! coordinates of each node and center of cylinder in x,y coordinates
-  integer(i2b) :: i, j, k ! dummy
-            integer(i2b) :: lx, ly, lz
-            lx = supercell%geometry%dimensions%indiceMax(x)
-            ly = supercell%geometry%dimensions%indiceMax(y)
-            lz = supercell%geometry%dimensions%indiceMax(z)
-  if( lx /= ly .or. lx/=lz) stop 'wall=9 should have same lx, ly and lz'
-  if( mod(lx,2) == 0 ) stop 'lx should be odd'
-  rorigin = [ real(lx+1,dp)/2.0_dp, real(ly+1,dp)/2.0_dp, real(lz+1,dp)/2.0_dp ]
-  radius = norm2( [1, (ly+1)/2, (lz+1)/2 ] - rorigin ) ! take great care as this is lx/2 only if rorigin falls in a lattice point.
-  do i = 1, lx
-    do j = 1, ly
-      do k = 1, lz
-        rnode = [real(i,dp),real(j,dp),real(k,dp)] - rorigin
-        if( norm2(rnode) > radius ) then
-          node(i,j,k)%nature = solid
-        else
-          node(i,j,k)%nature = fluid
-        end if
-      end do
-    end do
-  end do
-END SUBROUTINE CONSTRUCT_SPHERE_BENICHOU
-
-
-
-
-SUBROUTINE CONSTRUCT_DISC_BENICHOU
-! this program computes the time-dependent diffusion coefficient
-! of a two-dimensional system. it is a test of Olivier Benichou's
-! problem as expressed during the unformal discussion in PECSA
-! to present him the numerical results of LB with sorption.
-! The system is a circle, in which four entrances (exit) are found
-! at 0, 3, 6 and 9".
-!
-!ooooo ooooo
-!ooo     ooo
-!oo       oo
-!o         o
-!o         o
-!
-!o         o
-!o         o
-!oo       oo
-!ooo     ooo
-!ooooo ooooo
-
-! Note the four exits at 0, 3, 6 and 9".
-  real(dp) :: radius ! radius of cylinder
+SUBROUTINE CONSTRUCT_COAXIAL_CYLINDER
+  implicit none
+  real(dp) :: radius1, radius2 ! radius of cylinder
   real(dp), dimension(2) :: rnode, rorigin ! coordinates of each node and center of cylinder in x,y coordinates
-  integer(i2b) :: i, j ! dummy
+  integer(i2b) :: i, j, width1, width2 ! dummy
             integer(i2b) :: lx, ly, lz
             lx = supercell%geometry%dimensions%indiceMax(x)
             ly = supercell%geometry%dimensions%indiceMax(y)
             lz = supercell%geometry%dimensions%indiceMax(z)
-  if( lx /= ly) stop 'wall=4 should have same lx and ly'
-  if( mod(lx,2) == 0 ) stop 'lx should be odd'
+  if( lx /= ly) stop 'wall=2 is for cylinders, which should have same lx and ly'
+  if( lx<3 ) stop 'the diameter of the cylinder (lx) should be greater than 3'
   rorigin = [ real(lx+1,dp)/2.0_dp, real(ly+1,dp)/2.0_dp ]
-  radius = norm2( [1,(lx+1)/2] - rorigin) ! take great care as this is lx/2 only if rorigin falls in a lattice point.
+  print*, 'rorigin in module is =', rorigin
+
+
+  width1 = getinput%int("width1", defaultvalue=2) ! Number of nodes outside the cylinder
+  width2 = getinput%int("width2", defaultvalue=2)
+
+  radius1 = real(lx-width1,dp)/2.0_dp
+  radius2 = real(lx-width2,dp)/2.0_dp
+
+  print*, '*****************************************************************'
+  print*, 'The inner cylinder has a radius of R1 = ', radius1
+  print*, 'The outer cylinder has a radius of R2 = ', radius2
+  print*, '*****************************************************************'
+
   do i = 1, lx
     do j = 1, ly
       rnode = [real(i,dp),real(j,dp)] - rorigin
-      if( norm2(rnode) > radius ) then
+      if( norm2(rnode) <= radius1 ) then ! = radius is important because without it one has exists
+        node(i,j,:)%nature = solid
+      elseif (norm2(rnode) > radius2) then
         node(i,j,:)%nature = solid
       else
         node(i,j,:)%nature = fluid
       end if
     end do
   end do
-END SUBROUTINE CONSTRUCT_DISC_BENICHOU
+END SUBROUTINE CONSTRUCT_COAXIAL_CYLINDER
+
+
 
     subroutine construct_custom
     ! reads each point from input. Solid nodes only are indicated
@@ -423,7 +333,7 @@ END SUBROUTINE CONSTRUCT_DISC_BENICHOU
             node(i,j,k)%nature = solid
         end do
         close(u)
-    end subroutine
+    end subroutine construct_custom
 !
 !
 !
@@ -508,7 +418,7 @@ SUBROUTINE construct_pbm
         end do
     end do
     close(36)
-END SUBROUTINE
+END SUBROUTINE construct_pbm
 
 
 end module geometry

@@ -5,13 +5,16 @@ subroutine supercell_definition
   use constants, only: x, y, z
   use system, only: fluid, solid, pbc, supercell, node
   use module_input, only: getinput
-  use geometry, only: construct_slit, construct_cylinder, construct_cc, construct_disc_benichou,&
-                      construct_sinusoidal_walls_2d, CONSTRUCT_PLANES_WITH_VARIOUS_RADIUS_2D,&
-                      CONSTRUCT_TUBE_WITH_VARYING_DIAMETER, CONSTRUCT_SPHERICAL_CAVITY,&
-                      CONSTRUCT_SPHERE_BENICHOU,&
-                      CONSTRUCT_XUDONG_VINCENT_MARIE_CYL_BETWEEN_WALLS,&
+  use geometry, only: construct_cylinder, &
+                      construct_cc, &
+                      construct_sinusoidal_walls_2d, &
+                      CONSTRUCT_PLANES_WITH_VARIOUS_RADIUS_2D,&
+                      CONSTRUCT_TUBE_WITH_VARYING_DIAMETER, &
+                      CONSTRUCT_SPHERICAL_CAVITY,&
                       construct_custom,&
-                      CONSTRUCT_PBM
+                      CONSTRUCT_PBM, &
+                      construct_slit_Nsheets,&
+                      CONSTRUCT_COAXIAL_CYLINDER
   use io, only: print_supercell_xsf
   use mod_lbmodel, only: lbm
 
@@ -45,6 +48,7 @@ subroutine supercell_definition
   ! begins with fluid everywhere.
   !
   node%nature = fluid
+   node%isFixedPotential = .false. ! Ade : added 20/06/17
 
   ! construct medium geometry
   select case (supercell%geometry%label)
@@ -53,13 +57,11 @@ subroutine supercell_definition
   case (0) ! custom geometry
     call construct_custom
   case (1) ! supercell%geometry%label = 1 is two solid walls normal to Z axis.
-    call construct_slit
+    call construct_slit_Nsheets( getinput%int("SolidSheetsEachSideOfSlit", defaultvalue=1, assert=">0") )
   case (2) ! supercell%geometry%label = 2 => cylinder around Z axis.
     call construct_cylinder
   case (3) ! supercell%geometry%label = 3 => solid spheres in cubic face centred unit cell with at contact
     call construct_cc
-  case (4) ! supercell%geometry%label = 4 => benichou disc with exists
-    call construct_disc_benichou
   case (5)
     call construct_sinusoidal_walls_2d
   case (6)
@@ -68,12 +70,10 @@ subroutine supercell_definition
     call CONSTRUCT_TUBE_WITH_VARYING_DIAMETER
   case (8)
     call CONSTRUCT_SPHERICAL_CAVITY
-  case (9)
-    call CONSTRUCT_SPHERE_BENICHOU
-  case (10)
-    call CONSTRUCT_XUDONG_VINCENT_MARIE_CYL_BETWEEN_WALLS
   case (11)
     call CONSTRUCT_PBM
+  case (15)
+    call CONSTRUCT_COAXIAL_CYLINDER     
   case default
     stop 'supercell%geometry%label tag in input file is invalid'
   end select

@@ -13,6 +13,7 @@ MODULE moment_propagation
     REAL(dp), ALLOCATABLE, DIMENSION(:,:,:,:,:) :: Propagated_Quantity, Propagated_Quantity_Adsorbed
     INTEGER(1), PARAMETER :: now=0, next=1, past=-1, tini=past
     REAL(dp), DIMENSION(x:z, past:next) :: vacf
+    REAL(dp), DIMENSION(x:z) :: Convergence, vacfOLD
     REAL(dp) :: lambda, lambda_s ! lambda bulk and surface
     TYPE type_tracer
       REAL(dp) :: ka, kd, K, z, Db, Ds !K=ka/kd, z=tracer charge
@@ -27,13 +28,14 @@ MODULE moment_propagation
     !
     !
     !
-SUBROUTINE init
+SUBROUTINE init( solventDensity )
 
     USE system, ONLY: phi, fluid, solid, n, node
     use module_input, ONLY: getinput
 
     IMPLICIT NONE
 
+    real(dp), intent(in) :: solventDensity(:,:,:)
     real(dp) :: boltz_weight, Pstat, scattprop, scattprop_p, fermi, exp_dphi, exp_min_dphi, sum_of_boltz_weight, rho
     real(dp) :: n_loc(lbm%lmin:lbm%lmax)
     integer :: i, j, k, l, l_inv, ip, jp, kp, i_sum
@@ -42,6 +44,10 @@ SUBROUTINE init
     tracer%kd = getinput%dp('tracer_kd', 0._dp) ! Desorption coefficient of the tracer
     IF (tracer%ka < -eps) ERROR STOP 'I detected tracer%ka to be <0 in module moment_propagation. STOP.'
     IF (tracer%kd < -eps) ERROR STOP 'I detected tracer%kd to be <0 in module moment_propagation. STOP.'
+
+    print*, '+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+'
+    print*, 'init called 2'
+    print*, '+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+'
 
     if ( abs(tracer%kd)<= eps ) then ! if kd=0
       tracer%K = 0.0_dp
@@ -69,17 +75,17 @@ SUBROUTINE init
     lambda_s = calc_lambda(tracer%Ds)    ! surface diffusion. is 0 for Ds=0
 
     tracer%z = getinput%dp('tracer_z', 0._dp) ! tracer's charge
-    IF( ABS(tracer%z)>eps ) THEN
-        IF( ALLOCATED(phi) ) THEN
-            PRINT*,"Something is wrong (buuuug) line 79 of module_moment_propagation.f90"
-            ERROR STOP
-        END IF
-        tracer_is_neutral = .FALSE.
-        PRINT*,"charged tracers are not implemented"
-        ERROR STOP "line 85 of module_moment_propagation.f90"
-    ELSE
-        tracer_is_neutral = .TRUE.
-    END IF
+    !IF( ABS(tracer%z)>eps ) THEN
+    !    IF( ALLOCATED(phi) ) THEN
+    !        PRINT*,"Something is wrong (buuuug) line 79 of module_moment_propagation.f90"
+    !        ERROR STOP
+    !    END IF
+    !    tracer_is_neutral = .FALSE.
+    !    PRINT*,"charged tracers are not implemented"
+    !    ERROR STOP "line 85 of module_moment_propagation.f90"
+    !ELSE
+    !    tracer_is_neutral = .TRUE.
+    !END IF
 
 
     vacf = 0.0_dp ! vacf(x:z, past:next)
@@ -91,7 +97,8 @@ SUBROUTINE init
 
 
 
-    ! the sum of all boltzman weights is the sum over all exp(-z*phi) where node%nature == fluid. Note that is_interfacial == fluid + at interface
+    ! the sum of all boltzman weights is the sum over all exp(-z*phi) where node%nature == fluid. 
+    ! Note that is_interfacial == fluid + at interface
 
     IF( tracer_is_neutral ) THEN
         Pstat = COUNT( node%nature == fluid ) + tracer%K*COUNT(node%nature==fluid .AND. node%isinterfacial)
@@ -111,7 +118,7 @@ SUBROUTINE init
         END IF
 
         n_loc(:) = n(:,i,j,k)
-        rho = node(i,j,k)%solventDensity
+        rho = solventDensity(i,j,k)
 
         sum_of_boltz_weight = sum_of_boltz_weight + boltz_weight
         i_sum = i_sum +1
@@ -130,7 +137,7 @@ SUBROUTINE init
 
             l_inv = lbm%vel(l)%inv ! comes to r
             scattprop_p = calc_scattprop( &
-              n(l_inv,ip,jp,kp), node(ip,jp,kp)%solventDensity, lbm%vel(l_inv)%a0, lambda, 1.0_dp-fermi)
+              n(l_inv,ip,jp,kp), solventDensity(ip,jp,kp), lbm%vel(l_inv)%a0, lambda, 1.0_dp-fermi)
             Propagated_Quantity(:,i,j,k,tini+1) = Propagated_Quantity(:,i,j,k,tini+1) &
               + exp_min_dphi * scattprop_p * lbm%vel(l_inv)%coo(:) * boltz_weight
         end do
@@ -161,11 +168,12 @@ SUBROUTINE init
     !
     !
     !
-    SUBROUTINE PROPAGATE(it, is_converged)
+    SUBROUTINE PROPAGATE(it, is_converged, solventDensity)
 
       use system, only: fluid, solid, n, node
       use module_input, only: getinput
       implicit none
+      real(dp), intent(in) :: solventDensity(:,:,:)
       integer(i2b), intent(in) :: it
       real(dp) :: fermi, fractionOfParticleRemaining, scattprop, scattprop_p, exp_dphi, rho, n_loc(lbm%lmin:lbm%lmax)
       integer(i2b), parameter :: now=0, next=1, past=-1
@@ -174,13 +182,15 @@ SUBROUTINE init
         jp_all(lbm%lmin:lbm%lmax), kp_all(lbm%lmin:lbm%lmax)
       integer(i2b), save, allocatable :: c(:,:), l_inv(:)
       integer(kind(fluid)), save, allocatable :: nature(:,:,:)
-      real(dp), save, allocatable :: density(:,:,:), a0(:)
+      real(dp), allocatable :: a0(:)
       logical :: error
       logical, save, allocatable :: interfacial(:,:,:)
       logical, intent(out) :: is_converged
       character(1) :: ompvar
 
       error=.false.
+
+      vacfOLD = 0.0_dp ! Ade : 13/09/17 Initialisation of vacfOLD
 
       ll = lbm%lmin
       lu = lbm%lmax
@@ -192,7 +202,6 @@ SUBROUTINE init
       end if
       if (.not. allocated(a0)) allocate(a0(ll:lu), source=lbm%vel(:)%a0)
       if (.not. allocated(l_inv)) allocate(l_inv(ll:lu), source=lbm%vel(:)%inv)
-      if (.not. allocated(density)) allocate (density(lx,ly,lz), source=node(:,:,:)%solventDensity)
       if (.not. allocated(nature)) allocate (nature(lx,ly,lz), source=node(:,:,:)%nature)
       if (.not. allocated(interfacial)) allocate (interfacial(lx,ly,lz), source=node(:,:,:)%isInterfacial)
 
@@ -201,7 +210,7 @@ SUBROUTINE init
 !$OMP PARALLEL DO PRIVATE(i,j,k,l,ip,jp,kp,fermi,scattprop,l_inv_loc,scattprop_p,n_loc,u_star) &
 !$OMP PRIVATE(ip_all,jp_all,kp_all,fractionOfParticleRemaining,Propagated_Quantity_loc) &
 !$OMP SHARED(nature,n,lambda,Propagated_Quantity,l_inv,a0,c,ll,lu,lx,ly,lz,considerAdsorption,tracer) &
-!$OMP SHARED(Propagated_Quantity_Adsorbed,density,interfacial,error) &
+!$OMP SHARED(Propagated_Quantity_Adsorbed,solventDensity,interfacial,error) &
 !$OMP REDUCTION(+:vacf) &
 !$OMP DEFAULT(NONE)
       do k=1,lz ! we parallelize over k. If system is 30x30x1 parallelization is useless!
@@ -221,15 +230,17 @@ SUBROUTINE init
               kp = kp_all(l)
               if ( nature(ip,jp,kp) /= fluid ) cycle
               fermi = 1.0_dp/(1.0_dp + calc_exp_dphi(i,j,k,ip,jp,kp))
-              scattprop = calc_scattprop( n_loc(l), density(i,j,k), a0(l), lambda, fermi) ! scattering probability at r
+              scattprop = calc_scattprop( n_loc(l), solventDensity(i,j,k), a0(l), lambda, fermi) ! scattering probability at r
               fractionOfParticleRemaining = fractionOfParticleRemaining - scattprop ! what is scattered away is not found anymore at r
               u_star(:) = u_star(:) + scattprop*c(:,l)
               l_inv_loc = l_inv(l)
-              scattprop_p = calc_scattprop( n(l_inv_loc,ip,jp,kp), density(ip,jp,kp), a0(l_inv_loc), lambda, 1.0_dp-fermi)
+              scattprop_p = calc_scattprop( n(l_inv_loc,ip,jp,kp), solventDensity(ip,jp,kp), a0(l_inv_loc), lambda, 1.0_dp-fermi)
               Propagated_Quantity_loc(:) = Propagated_Quantity_loc(:) + Propagated_Quantity(:,ip,jp,kp,now)*scattprop_p
             end do
             Propagated_Quantity(:,i,j,k,next) = Propagated_Quantity_loc(:)
             vacf(:,now) = vacf(:,now) + Propagated_Quantity(:,i,j,k,now)*u_star(:)
+          !Convergence = abs(vacf(:,now) - vacfOLD) ! Ade : 13/09/17 I introduced this variable to change the convergence criterion
+          !vacfOLD = vacf(:,now) ! Ade : Update of vacfOLD
 
             ! NOW, UPDATE THE PROPAGATED QUANTITIES
             if (   (.not.Interfacial(i,j,k) .and. considerAdsorption) &
@@ -252,11 +263,15 @@ SUBROUTINE init
         end do
       end do
 !$OMP END PARALLEL DO
-
+      Convergence = abs(vacf(:,now) - vacf(:,past)) ! Ade : 13/09/17 I introduced this variable to change the convergence criterion
 
       if(error) stop 'somewhere restpart is negative' ! TODO one should find a better function for ads and des, as did Benjamin for pi
 
-      if(modulo(it,10000)==0) print*,it,REAL(vacf(:,now),sp)
+      !if(modulo(it,10000)==0) print*,it,REAL(vacf(:,now),sp)
+      !if(modulo(it,10000)==0) print*,it,REAL(vacf(:,now),sp)
+      if(modulo(it,10000)==0) print*,it,vacf(1,now),' one'
+      if(modulo(it,10000)==0) print*,it,REAL(vacf(2,now),sp), ' two'
+      if(modulo(it,10000)==0) print*,it,REAL(vacf(3,now),sp), 'three'
 
       ! back to the futur: the futur is now, and reinit futur
       Propagated_Quantity(:,:,:,:,now) = Propagated_Quantity(:,:,:,:,next)
@@ -278,10 +293,18 @@ SUBROUTINE init
       !~         END DO; END DO; END DO;
       !~     CLOSE(100)
 
+      !Convergence = Convergence + abs(vacf(:,now) - vacfOLD) ! Ade : 13/09/17 I introduced this variable to change the convergence criterion
+      !print*,
+      !print*, '************************************************************************'
+      !print*, 'Convergence =', Convergence(:)
+      !print*, '************************************************************************'
+    
+      !vacfOLD = vacf(:,now) ! Ade : Update of vacfOLD
       vacf(:,past) = vacf(:,now)
       vacf(:,now) = 0.0_dp
 
-      IF( it>2 .and. all(abs(vacf)<1._dp/(2._dp*lx*ly*lz/tracer%Db)) .and. all(abs(vacf)<1.e-12) ) then ! TODO MAGIC NUMBER REMOVE THAT SOON
+      !IF( it>2 .and. all(abs(vacf)<1._dp/(2._dp*lx*ly*lz/tracer%Db)) .and. all(abs(vacf)<1.e-12) ) then ! TODO MAGIC NUMBER REMOVE THAT SOON
+      IF( it>2 .and. all(abs(vacf)<1._dp/(2._dp*lx*ly*lz/tracer%Db)) .and. all(abs(Convergence)<1.e-20) ) then ! TODO MAGIC NUMBER REMOVE THAT SOON
         is_converged = .true.
       ELSE
         is_converged = .false.
@@ -312,17 +335,17 @@ SUBROUTINE init
     integer(i2b), intent(in) :: i, j, k, ip, jp, kp
     dphi = phi(ip,jp,kp) - phi(i,j,k)
     if      (i==lx .and. ip==1) then
-      dphi = dphi + elec_slope(x)*(lx+1)
+      dphi = dphi + elec_slope(x)*(lx)
     else if(i==1 .and. ip==lx) then
-      dphi = dphi - elec_slope(x)*(lx+1)
+      dphi = dphi - elec_slope(x)*(lx)
     else if(j==ly .and. jp==1) then
-      dphi = dphi + elec_slope(y)*(ly+1)
+      dphi = dphi + elec_slope(y)*(ly)
     else if(j==1 .and. jp==ly) then
-      dphi = dphi - elec_slope(y)*(ly+1)
+      dphi = dphi - elec_slope(y)*(ly)
     else if(k==lz .and. kp==1) then
-      dphi = dphi + elec_slope(z)*(lz+1)
+      dphi = dphi + elec_slope(z)*(lz)
     else if(k==1 .and. kp==lz) then
-      dphi = dphi - elec_slope(z)*(lz+1)
+      dphi = dphi - elec_slope(z)*(lz)
     end if
   END FUNCTION DPHI
 

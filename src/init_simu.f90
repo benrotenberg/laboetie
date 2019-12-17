@@ -1,77 +1,53 @@
 SUBROUTINE init_simu
 
-    USE precision_kinds
-    USE mod_lbmodel, ONLY: init_everything_related_to_lb_model => initialize, lbm
-    USE system, ONLY: node, n, solid
-    USE io, ONLY: print_header, print_input_in_output_folder, inquireNecessaryFilesExistence
+    USE precision_kinds, only: dp
+    USE mod_lbmodel, only: init_everything_related_to_lb_model => initialize, lbm
+    USE system, only: node, n, solid
+    USE io, only: print_header, print_input_in_output_folder, inquireNecessaryFilesExistence
     USE myallocations
-    use module_input, ONLY: getinput
+    use module_input, only: getinput
 
     IMPLICIT NONE
 
-    REAL(dp) :: svden
+    REAL(dp) :: initialSolventDensity
     integer :: l
 
     CALL print_header
     CALL inquireNecessaryFilesExistence  ! check that input, output folder and file ./lb.in exist
     CALL init_everything_related_to_lb_model ! init everything related to D3Q15 or D3Q19 etc ie LB models
-    CALL supercell_definition    ! prepare supercell geometry
-    CALL scheduler ! t_equil, tmom, tmax! schedule simulation
+    CALL supercell_definition ! prepare supercell geometry
+    CALL scheduler ! tmom, tmax! schedule simulation
 
     !
-    ! Init solvent populations
+    ! Initialize solvent populations, noted n(x,y,z,l) in laboetie.
+    ! It should be 0 in solid nodes and 1 by default in the liquid phase.
     !
-    IF( .NOT. ALLOCATED(n)) CALL allocatereal4D(n)
-    n = 0
-
-    !
-    ! Init Solvent density
-    ! but in the solid, where it is 0
-    !
-    svden = getinput%dp("initialSolventDensity", 1._dp)
-    WHERE( node%nature /= solid )
-        node%solventdensity = svden
-    ELSEWHERE
-        node%solventdensity = 0
-    END WHERE
-    do l= lbm%lmin, lbm%lmax
-      n(:,:,:,l) = node%solventdensity * lbm%vel(l)%a0
+    if( .not. allocated(n) ) call allocatereal4D(n)
+    initialSolventDensity = getinput%dp("initialSolventDensity", defaultvalue=1._dp, assert=">0")
+    do l = lbm%lmin, lbm%lmax
+        where( node%nature /= solid )
+            n(:,:,:,l) = initialSolventDensity * lbm%vel(l)%a0
+        elsewhere
+            n(:,:,:,l) = 0._dp
+        end where
     end do
-
-
-    CALL charges_init    ! init charge distribution
 
 CONTAINS
     !
     !
     !
 SUBROUTINE scheduler
-        use system, only: t_equil, tmom, tmax, D_iter, time
+        use system, only: tmom, tmax, D_iter, time
         use module_input, only: getinput
         ! 4 times are important :
         ! - 0 at which simulation starts
-        ! - t_equil which is the time of equilibration ending
         ! - tmom at which we're looking at tracer moment propagation
         ! - tmax at which simulation stops
         ! init to non-physical value catched later in order to be sure they are modified
         time = 0
-        D_iter = getinput%int('D_iter',-1)
+        D_iter = getinput%int('D_iter',1) ! ADE : the default value should be 1 (check)
         tmax = getinput%int('tmax',-1)
         tmom = getinput%int('tmom',-1)
-        t_equil = getinput%int('t_equil',-1)
-
-        !! check coherence
-        !if( tmax <= 0 .or. tmom <= 0 .or. t_equil <= 0 ) then
-        !    stop 'in scheduler. no time should be negative or zero'
-        !end if
-        !! check tmax is last
-        !if( tmom > tmax .or. t_equil > tmax ) then
-        !    stop 'equilibration and moment propagation cannot start after simulation end. check input.'
-        !end if
-        !! tracer moment preparation should come after equilibration
-        !if( tmom < t_equil ) then
-        !    stop 'tracer moment propagation should come after equilibration.tmom should be >= t_equil. check input file.'
-        !end if
 end subroutine
     !
     !
