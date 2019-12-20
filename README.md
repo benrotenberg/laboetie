@@ -8,14 +8,13 @@ It is based on the Lattice-Boltzmann algorithm to solve fluid dynamics equations
 
 It is written by Maximilien Levesque¹ and Benjamin Rotenberg²  
 ¹ École Normale Supérieure and CNRS, Paris, France  
-² Sorbonne Universités, UPMC Univ. Paris 06, CNRS, UMR 8234, PHENIX, F-75005 Paris, France
+² CNRS, Sorbonne Université, UMR 8234, PHENIX, F-75005 Paris, France
 
 ---
 
 ## Please cite us!
 
-We are researchers: our work is evaluated on the basis of citations to our publications. If you use Laboetie, please cite us:  
-[doi: 10.1103/PhysRevE.88.013308](http://dx.doi.org/10.1103/PhysRevE.88.013308)
+We are researchers: our work is evaluated on the basis of citations to our publications. If you use Laboetie, please cite us (see list below)
 
 ------
 
@@ -44,7 +43,7 @@ We are researchers: our work is evaluated on the basis of citations to our publi
   6. **Lattice Boltzmann electrokinetics simulation of nanocapacitors**  
       Adelchi J. Asta, Ivan Palaia, Emmanuel Trizac, Maximilien Levesque and Benjamin Rotenberg  
       J. Chem. Phys., 151, 114104 (2019)  
-      https://doi.org/10.1063/1.5119341  
+      https://dx.doi.org/10.1063/1.5119341  
 
 ---
 

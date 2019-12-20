@@ -167,20 +167,20 @@ module io
             CLOSE(5)
         END SUBROUTINE
 
-!subroutine print_vacf
-!  use system, only: dp, i2b, vacf, tmax, tmom
-!  use constants, only: x, y, z
-!  implicit none
-!  integer(kind=i2b) :: t
-!  open(unit=99,file='output/vacf.dat')
-!
-!  if( ubound(vacf,2) > tmax-tmom+1) stop 'ubound vacfx too low !?'
-!  do t= 0, tmax-tmom
-!    write(99,*) t, vacf(x,t), vacf(y,t), vacf(z,t)
-!  end do
-!  print*,'wrote output/vacf.dat'
-!  close(99)
-!end subroutine print_vacf
+        !subroutine print_vacf
+        !  use system, only: dp, i2b, vacf, tmax, tmom
+        !  use constants, only: x, y, z
+        !  implicit none
+        !  integer(kind=i2b) :: t
+        !  open(unit=99,file='output/vacf.dat')
+        !
+        !  if( ubound(vacf,2) > tmax-tmom+1) stop 'ubound vacfx too low !?'
+        !  do t= 0, tmax-tmom
+        !    write(99,*) t, vacf(x,t), vacf(y,t), vacf(z,t)
+        !  end do
+        !  print*,'wrote output/vacf.dat'
+        !  close(99)
+        !end subroutine print_vacf
 
         ! This subroutine writes an intent(in) array called 'array' to 'filename' in the file format .cube that handles 3-dimensional data.
         ! The standard .cube file can be read by vmd for instance. It is meant to vizualize periodic supercells.

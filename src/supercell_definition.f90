@@ -48,7 +48,7 @@ subroutine supercell_definition
   ! begins with fluid everywhere.
   !
   node%nature = fluid
-   node%isFixedPotential = .false. ! Ade : added 20/06/17
+  node%isFixedPotential = .false. ! Ade : added 20/06/17
 
   ! construct medium geometry
   select case (supercell%geometry%label)

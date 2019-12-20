@@ -28,7 +28,7 @@ MODULE moment_propagation
     !
     !
     !
-SUBROUTINE init( solventDensity )
+    SUBROUTINE init( solventDensity )
 
     USE system, ONLY: phi, fluid, solid, n, node
     use module_input, ONLY: getinput
@@ -75,17 +75,6 @@ SUBROUTINE init( solventDensity )
     lambda_s = calc_lambda(tracer%Ds)    ! surface diffusion. is 0 for Ds=0
 
     tracer%z = getinput%dp('tracer_z', 0._dp) ! tracer's charge
-    !IF( ABS(tracer%z)>eps ) THEN
-    !    IF( ALLOCATED(phi) ) THEN
-    !        PRINT*,"Something is wrong (buuuug) line 79 of module_moment_propagation.f90"
-    !        ERROR STOP
-    !    END IF
-    !    tracer_is_neutral = .FALSE.
-    !    PRINT*,"charged tracers are not implemented"
-    !    ERROR STOP "line 85 of module_moment_propagation.f90"
-    !ELSE
-    !    tracer_is_neutral = .TRUE.
-    !END IF
 
 
     vacf = 0.0_dp ! vacf(x:z, past:next)
@@ -97,7 +86,7 @@ SUBROUTINE init( solventDensity )
 
 
 
-    ! the sum of all boltzman weights is the sum over all exp(-z*phi) where node%nature == fluid. 
+    ! the sum of all Boltzmann weights is the sum over all exp(-z*phi) where node%nature == fluid. 
     ! Note that is_interfacial == fluid + at interface
 
     IF( tracer_is_neutral ) THEN
@@ -130,12 +119,12 @@ SUBROUTINE init( solventDensity )
 
             if (node(ip,jp,kp)%nature==solid) cycle
             exp_dphi = calc_exp_dphi( i, j, k, ip, jp, kp)
-            exp_min_dphi = 1.0_dp/exp_dphi ! =1 if tracer%z=0
-            fermi = 1.0_dp/(1.0_dp + exp_dphi) ! =0.5 if tracer%z=0
+            exp_min_dphi = 1.0_dp/exp_dphi                                                      ! =1 if tracer%z=0
+            fermi = 1.0_dp/(1.0_dp + exp_dphi)                                                  ! =0.5 if tracer%z=0
             scattprop = calc_scattprop( n_loc(l), rho, lbm%vel(l)%a0, lambda, fermi)
             vacf(:,tini) = vacf(:,tini) + boltz_weight *scattprop *lbm%vel(l)%coo(:)**2
 
-            l_inv = lbm%vel(l)%inv ! comes to r
+            l_inv = lbm%vel(l)%inv                                                              ! comes to r
             scattprop_p = calc_scattprop( &
               n(l_inv,ip,jp,kp), solventDensity(ip,jp,kp), lbm%vel(l_inv)%a0, lambda, 1.0_dp-fermi)
             Propagated_Quantity(:,i,j,k,tini+1) = Propagated_Quantity(:,i,j,k,tini+1) &
@@ -222,7 +211,7 @@ SUBROUTINE init( solventDensity )
             ip_all(:) = [( pbc( i+c(x,l) ,x) , l=ll,lu)]
             u_star(:) = 0.0_dp ! the average velocity at r
             fractionOfParticleRemaining = 1.0_dp ! fraction of particles staying at r; decreases in the loop over neighbours
-            n_loc(:) = n(:,i,j,k) ! CTODO CHANGER ORDRE INDICES
+            n_loc(:) = n(:,i,j,k) ! TODO CHANGE INDEX ORDER
             Propagated_Quantity_loc(:) = Propagated_Quantity(:,i,j,k,next)
             do l = ll+1, lu ! ll is velocity=0
               ip = ip_all(l)
@@ -239,8 +228,6 @@ SUBROUTINE init( solventDensity )
             end do
             Propagated_Quantity(:,i,j,k,next) = Propagated_Quantity_loc(:)
             vacf(:,now) = vacf(:,now) + Propagated_Quantity(:,i,j,k,now)*u_star(:)
-          !Convergence = abs(vacf(:,now) - vacfOLD) ! Ade : 13/09/17 I introduced this variable to change the convergence criterion
-          !vacfOLD = vacf(:,now) ! Ade : Update of vacfOLD
 
             ! NOW, UPDATE THE PROPAGATED QUANTITIES
             if (   (.not.Interfacial(i,j,k) .and. considerAdsorption) &
@@ -267,13 +254,11 @@ SUBROUTINE init( solventDensity )
 
       if(error) stop 'somewhere restpart is negative' ! TODO one should find a better function for ads and des, as did Benjamin for pi
 
-      !if(modulo(it,10000)==0) print*,it,REAL(vacf(:,now),sp)
-      !if(modulo(it,10000)==0) print*,it,REAL(vacf(:,now),sp)
-      if(modulo(it,10000)==0) print*,it,vacf(1,now),' one'
-      if(modulo(it,10000)==0) print*,it,REAL(vacf(2,now),sp), ' two'
-      if(modulo(it,10000)==0) print*,it,REAL(vacf(3,now),sp), 'three'
+      if(modulo(it,10000)==0) print*,it,REAL(vacf(1,now),sp), ' VACF-x'
+      if(modulo(it,10000)==0) print*,it,REAL(vacf(2,now),sp), ' VACF-y'
+      if(modulo(it,10000)==0) print*,it,REAL(vacf(3,now),sp), ' VACF-z'
 
-      ! back to the futur: the futur is now, and reinit futur
+      ! back to the future: the future is now, and reinit future
       Propagated_Quantity(:,:,:,:,now) = Propagated_Quantity(:,:,:,:,next)
       Propagated_Quantity(:,:,:,:,next) = 0.0_dp
       if (considerAdsorption) then
@@ -293,13 +278,7 @@ SUBROUTINE init( solventDensity )
       !~         END DO; END DO; END DO;
       !~     CLOSE(100)
 
-      !Convergence = Convergence + abs(vacf(:,now) - vacfOLD) ! Ade : 13/09/17 I introduced this variable to change the convergence criterion
-      !print*,
-      !print*, '************************************************************************'
-      !print*, 'Convergence =', Convergence(:)
-      !print*, '************************************************************************'
-    
-      !vacfOLD = vacf(:,now) ! Ade : Update of vacfOLD
+      ! update for next iteration
       vacf(:,past) = vacf(:,now)
       vacf(:,now) = 0.0_dp
 

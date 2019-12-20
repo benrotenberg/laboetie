@@ -3,7 +3,7 @@ subroutine smolu
   use system, only: time, D_iter, D_plus, D_minus, solute_force,&
                      elec_slope, lncb_slope, phi_tot, &
                      kbt, fluid, solid, c_plus, c_minus, el_curr_x, el_curr_y, el_curr_z,&
-                     ion_curr_x, ion_curr_y, ion_curr_z, pbc, supercell, node, cations_NEcurr, anions_NEcurr,&
+                     ion_curr_x, ion_curr_y, ion_curr_z, pbc, supercell, node, & !cations_NEcurr, anions_NEcurr,&
                      A_zero
   use constants, only: x, y, z, zerodp
   use mod_lbmodel, only: lbm
@@ -11,7 +11,7 @@ subroutine smolu
   implicit none
   integer(kind=i2b) :: i, j, k, ip, jp, kp, l, m
   real(kind=dp) :: exp_dphi, exp_min_dphi, exp_dlncb, exp_min_dlncb
-  real(dp), dimension(:,:,:), allocatable :: flux_site_minus, flux_site_plus, phiTEMP
+  real(dp), dimension(:,:,:), allocatable :: flux_site_minus, flux_site_plus 
   integer(kind=i2b) :: n_fluidsites ! total number of fluid side
   real(kind=dp) :: el_curr, ion_curr!, cations_NEcurr, anions_NEcurr
   real(kind=dp) :: f_microions, f_plus, f_minus
@@ -22,15 +22,6 @@ subroutine smolu
   lz = supercell%geometry%dimensions%indiceMax(z)
   call allocateReal3D( flux_site_plus)
   call allocateReal3D( flux_site_minus)
-  call allocateReal3D( phiTEMP)
-
-! Ade: for Debug
-open(305, file = "output/FluxSitePLUS.dat")
-open(306, file = "output/FluxSiteMINUS.dat")
-open(455, file = "output/IonElecCurrX.dat")
-open(456, file = "output/IonElecCurrY.dat")
-open(457, file = "output/IonElecCurrZ.dat")
-! end deabug
 
 
   if(.not.allocated(solute_force)) allocate(solute_force(lx,ly,lz,x:z),source=0.0_dp)
@@ -44,14 +35,6 @@ open(457, file = "output/IonElecCurrZ.dat")
   solute_force(:,:,:,2) = zerodp
   solute_force(:,:,:,3) = zerodp
 
-  !OPEN( 1616, FILE="output/TRUEFALSE.dat" )
-  !OPEN( 1717, FILE="output/Debug.dat" )
-  !OPEN( 1718, FILE="output/slp.dat" )
-  
-  !half = (lz/2)
-  !DO m=1,ly
-  !   WRITE(1718,*) m, (phi_tot(:,m,half))
-  !ENDDO
 
   ! compute the flux between site i,j,k and site ip,jp,kp
   do i = 1, lx
@@ -65,16 +48,10 @@ open(457, file = "output/IonElecCurrZ.dat")
           jp= pbc( j+ lbm%vel(l)%coo(y) ,y)
           kp= pbc( k+ lbm%vel(l)%coo(z) ,z)
 
-           !write(1616,*) 'node(ip,jp,k)%nature == solid ', node(ip,jp,kp)%nature == solid
-           !write(1616,*) 'node(i,j,k)%nature ==fluid ', node(i,j,k)%nature ==fluid
-           !write(1616,*) 'Both ', node(i,j,k)%nature ==fluid .and. node(ip,jp,kp)%nature == solid
-
           ! if both nodes are in fluid
           if( node(i,j,k)%nature == fluid .and. node(ip,jp,kp)%nature == fluid ) then
             ! compute potential difference between sites
             exp_dphi = exp( phi_tot(ip,jp,kp) - phi_tot(i,j,k) ) ! arrival minus departure
-            !if (l==lbm%lmin+3) phiTEMP(i,j,k) =  phi_tot(ip,jp,kp) - phi_tot(i,j,k)
-            if (l==lbm%lmin+3) phiTEMP(i,j,k) = phi_tot(i,j,k)
             ! here is a very bizarre trick to correct for the jump in the external potential (elec_slope)
             if( i == lx .and. ip == 1  ) exp_dphi = exp_dphi* exp( elec_slope(x)* (lx) ) ! Ade : we added +1 here and below
             if( j == ly .and. jp == 1  ) exp_dphi = exp_dphi* exp( elec_slope(y)* (ly) )
@@ -82,7 +59,6 @@ open(457, file = "output/IonElecCurrZ.dat")
             if( i == 1  .and. ip == lx ) exp_dphi = exp_dphi* exp(-elec_slope(x)* (lx) )
             if( j == 1  .and. jp == ly ) exp_dphi = exp_dphi* exp(-elec_slope(y)* (ly) )
             if( k == 1  .and. kp == lz ) exp_dphi = exp_dphi* exp(-elec_slope(z)* (lz) )
-            ! phiTEMP = log(exp_dphi)
             ! inverse
             exp_min_dphi = 1.0_dp / exp_dphi
 
@@ -100,14 +76,16 @@ open(457, file = "output/IonElecCurrZ.dat")
             el_curr  = flux_link_plus * D_plus*A_zero - flux_link_minus * D_minus*A_zero
             ion_curr = flux_link_plus * D_plus*A_zero + flux_link_minus * D_minus*A_zero
             ! Ade : Amael's fluxes
-            cations_NEcurr = cations_NEcurr + flux_link_plus * D_plus*A_zero
-            anions_NEcurr = anions_NEcurr + flux_link_minus * D_minus*A_zero
+            !cations_NEcurr = cations_NEcurr + flux_link_plus * D_plus*A_zero
+            !anions_NEcurr = anions_NEcurr + flux_link_minus * D_minus*A_zero
             !!!!!!!!!!!!!!!!!
+
             ! forces exerted by solute on fluid
             f_plus  = 0.5_dp * ( 1.0_dp + exp_min_dphi )*( c_plus(ip,jp,kp) * exp_dphi - c_plus(i,j,k) )
             f_minus = 0.5_dp * ( 1.0_dp + exp_dphi )*( c_minus(ip,jp,kp) * exp_min_dphi - c_minus(i,j,k) )
             f_microions = kBT * (f_plus + f_minus)
-            ! Subtract a term equal to the gradient of the charged densities
+            ! Subtract a term equal to the gradient of the ionic concentrations
+            !     (ideal term in the chemical potential, does not contribute to the force)
             f_microions = f_microions -kBT*(c_plus(ip,jp,kp)-c_plus(i,j,k)+c_minus(ip,jp,kp)-c_minus(i,j,k))
 
             flux_link_plus = flux_link_plus * (D_plus / lbm%vel(l)%delta )
@@ -127,8 +105,8 @@ open(457, file = "output/IonElecCurrZ.dat")
             ion_curr_y = ion_curr_y + lbm%vel(l)%a1 *lbm%vel(l)%coo(y) *ion_curr / D_iter
             ion_curr_z = ion_curr_z + lbm%vel(l)%a1 *lbm%vel(l)%coo(z) *ion_curr / D_iter
             ! Ade : Amael's fluxes
-            cations_NEcurr = cations_NEcurr + lbm%vel(l)%a1 *lbm%vel(l)%coo(z) *cations_NEcurr / D_iter
-            anions_NEcurr = anions_NEcurr + lbm%vel(l)%a1 *lbm%vel(l)%coo(z) *anions_NEcurr / D_iter
+            !cations_NEcurr = cations_NEcurr + lbm%vel(l)%a1 *lbm%vel(l)%coo(z) *cations_NEcurr / D_iter
+            !anions_NEcurr = anions_NEcurr + lbm%vel(l)%a1 *lbm%vel(l)%coo(z) *anions_NEcurr / D_iter
             !!!!!!!!!!!!!!
 
             ! Ade : Beginning of modification
@@ -138,13 +116,8 @@ open(457, file = "output/IonElecCurrZ.dat")
             ! term in the line below. 
             solute_force(i,j,k,:) = solute_force(i,j,k,:) - lbm%vel(l)%a1 *lbm%vel(l)%coo(:) *f_microions/D_iter ! Ade : change from + to -
             ! Ade : end of modification
-            !Ade : Debug
-            !if (i==lx/2 .and. k)==lz/2) then
-            !  write(305,*) j, l ,lbm%vel(l)%a1 *lbm%vel(l)%coo(y) * f_microions/D_iter
-            !endif
-            !write(305,*) j, flux_site_plus(:,j,:)
-            !write(306,*) j, flux_site_minus(:,j,:)
-            ! End debug
+
+
           else if( node(i,j,k)%nature ==fluid .and. node(ip,jp,kp)%nature == solid) then
              exp_dphi = exp(phi_tot(ip,jp,kp)-phi_tot(i,j,k))
             ! here is a very bizarre trick to correct for the jump in the external potential (elec_slope)
@@ -171,12 +144,6 @@ open(457, file = "output/IonElecCurrZ.dat")
             ! Ade : end of modification
 
 
-            !print*, '!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!'
-            !DO m=1,lz
-            !      print*, 'SECOND solute_force = ', solute_force(:,:,k,3) ! Ade : The fluid is moving in the y-direction whenever a slit 
-            !END DO
-            !print*, '!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!'
-
           end if
  
         end do ! loop over neighbours
@@ -184,12 +151,7 @@ open(457, file = "output/IonElecCurrZ.dat")
       end do
     end do
   end do
-  !half = (lz/2)
-  !DO m=1,ly
-  !   WRITE(1718,*) m, (phiTEMP(:,m,half))
-  !ENDDO
-  !close(1616)
-  !lose(1717)
+
   close(305)
   close(306)
 
@@ -210,19 +172,9 @@ open(457, file = "output/IonElecCurrZ.dat")
     ion_curr_y = ion_curr_y / n_fluidsites
     ion_curr_z = ion_curr_z / n_fluidsites
     ! Ade: Amael's fluxes
-    cations_NEcurr = cations_NEcurr/n_fluidsites
-    anions_NEcurr = anions_NEcurr/n_fluidsites
+    !cations_NEcurr = cations_NEcurr/n_fluidsites
+    !anions_NEcurr = anions_NEcurr/n_fluidsites
   end if
-  ! Ade : Debug 
-  !write(455,*) '##############################################'
-  !write(456,*) '##############################################'
-  !write(457,*) '##############################################'
-  !write(455,*) ion_curr_x, el_curr_x
-  !write(456,*) ion_curr_y, el_curr_y
-  !write(457,*) ion_curr_z, el_curr_z
-close(455)
-close(456)
-close(457)
 
   ! check that the sum of all fluxes is zero
   if( abs(sum( flux_site_plus,mask=node%nature==fluid)) > 1.0e-12 .or. &

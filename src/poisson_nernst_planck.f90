@@ -15,12 +15,13 @@ SUBROUTINE poisson_nernst_planck
 
   IMPLICIT NONE
 
-  INTEGER :: timestep, timestepmax, i, j, k, geometrie, lx, ly, lz, capacitor,&
+  INTEGER :: timestep, timestepmax, i, j, k, MyGeometry, lx, ly, lz, capacitor,&
              slit_sol, m, ENNE
   LOGICAL :: is_converged = .FALSE.
-  real(dp), allocatable, dimension(:,:,:) :: phiTMP ! Ade
+  !real(dp), allocatable, dimension(:,:,:) :: phiTMP ! Ade
+  real(dp) :: target_error_charge, max_error
   real(dp) :: SF, Alpha, FACT1, FACT2, FLAT, Somma1, Somma2, Somma3, Somma4, Somma5, Somma6
-  character*200 :: ifile
+  character(len=200) :: ifile
 
   open(314, file='output/c_plus_alongZ.dat')
   open(315, file='output/c_minus_alongZ.dat')
@@ -36,7 +37,7 @@ SUBROUTINE poisson_nernst_planck
   PRINT*,'======================='
 
   ! read the number of iterations one does for the first step of equilibration (D_iter)
-  CALL get_timestepmax (timestepmax)
+  CALL get_timestepmax( timestepmax )
   D_equil = timestepmax ! Ade: 30/03/2017 D_equil was never given a value. Thus it was always
                         ! equal to zero. This explains why the profiles would never iterate. 
 
@@ -53,23 +54,28 @@ SUBROUTINE poisson_nernst_planck
   lncb_slope = getinput%dp3("lncb_slope")
   elec_slope = getinput%dp3("elec_slope")
   
+  ! BR: added target for convergence of charge distribution
+  target_error_charge = getinput%dp('target_error_charge',1.D-12)
 
   ! Ade : modification 20/03/2017
   lx = supercell%geometry%dimensions%indiceMax(x)
   ly = supercell%geometry%dimensions%indiceMax(y)
   lz = supercell%geometry%dimensions%indiceMax(z)
-  geometrie = getinput%int('geometryLabel',-1)
-  ! Ade : attention phiTMP here is not the same as in SOR
-  IF( .NOT. ALLOCATED(phiTMP) ) CALL allocateReal3D(phiTMP)
+  MyGeometry = getinput%int('geometryLabel',-1)
+  
+  !IF( .NOT. ALLOCATED(phiTMP) ) CALL allocateReal3D(phiTMP)
   IF( .NOT. ALLOCATED(phi) ) CALL allocateReal3D(phi)
+
+
   !phi = 0.0_dp ! Ade : initialise phi
   capacitor = getinput%int('capacitor',0) ! 1 = true 0 = false
-
   slit_sol = getinput%int('slit_sol',0) ! 1= true 0 = false
   ! Ade : m is used for the initial solution input for c_plus        
-    m = getinput%int("SolidSheetsEachSideOfSlit", defaultvalue=1, assert=">0")
-    if(capacitor.NE.1 .and. slit_sol==1) then
-    if( geometrie == 1 ) then   ! slit pore geometry
+  m = getinput%int("SolidSheetsEachSideOfSlit", defaultvalue=1, assert=">0")
+
+  if(capacitor.NE.1 .and. slit_sol==1) then
+
+     if( MyGeometry == 1 ) then   ! slit pore geometry
         Alpha = getinput%dp('Alpha',0._dp)  ! Attention!!!!!! This is dangerous. We should probably  
                                             ! compute its value in another subroutine
         ENNE = lz-(2*m) ! Nb of fluid nodes
@@ -78,112 +84,131 @@ SUBROUTINE poisson_nernst_planck
         else
            SF = real(lz)/2 + 0.5
         endif
-!TODO : BOUGER LE TRUC CI DESSOUS POUR QUE LA SOLUTION ANALYTIQUE SOIT APPELEE SEULVEMENT SI ON VEUT ET A LEXTERIEUR
-        ! Below : cas sans sel
+
+        !TODO : BOUGER LE TRUC CI DESSOUS POUR QUE LA SOLUTION ANALYTIQUE SOIT APPELEE SEULVEMENT SI ON VEUT ET A LEXTERIEUR
         if( lambda_d == 0.0) then ! no salt added
             do i = 1, lx      
                 do j = 1, ly  
-                  do k = m+1, lz-m ! first and last node are solid
+                  do k = m+1, lz-m ! first and last nodes are solid
                     ! Ade : below is the analytical solution for the potential (called phi) for a slit geometry.
-                    phiTMP(i,j,k) = 2.0*log(cos(Alpha*(k-SF))/(cos(Alpha*(real(ENNE)*0.5)) ))! Potential phi analytical solution for a slit
+                    !phiTMP(i,j,k) = 2.0*log(cos(Alpha*(k-SF))/(cos(Alpha*(real(ENNE)*0.5)) ))
+                    phi(i,j,k) = 2.0*log( cos(Alpha*(k-SF)) / cos(Alpha*(real(ENNE)*0.5)) )
                   end do
                 end do
             end do
             FLAT =  2.0*log(cos(Alpha*(m-SF))/(cos(Alpha*(real(ENNE)*0.5)) ))
-        ! below : cas avec sel
         else ! salt added
             FACT1 = 2.0*pi*tot_sol_charge*bjl*lambda_D/(lx*ly)
             FACT2 = ( sinh(real(ENNE)/(2.0*lambda_D)) )
             do i = 1, lx      
                 do j = 1, ly  
                   do k = m+1, lz-m ! first and last node are solid
-                        phiTMP(i,j,k) = FACT1 * cosh( (k-SF)/lambda_D )/( FACT2 )
+                        !phiTMP(i,j,k) = FACT1 * cosh( (k-SF)/lambda_D )/( FACT2 )
+                    phi(i,j,k) = FACT1 * cosh( (k-SF)/lambda_D )/( FACT2 )
                   end do
                 end do
             end do
             FLAT =  FACT1 * cosh( (m-SF)/lambda_D )/( FACT2 )
         endif
-        phi = phiTMP 
+        !phi = phiTMP 
         where(node%nature==solid)
             phi = FLAT
         end where
-    endif
-  end if
 
-    DO k=1,supercell%geometry%dimensions%indiceMax(z)
-      write(280,*) k, SUM(phi(:,:,k)), sum(phiTMP(:,:,k))
-    ENDDO
-    close(280)
-  ! Ade : end modification 20/03/2017
-    
-    DO k=supercell%geometry%dimensions%indiceMin(z), supercell%geometry%dimensions%indiceMax(z)
-        WRITE(316,*) k, c_plus(:,:,k)
-    ENDDO
-    close(316)
+     endif ! end if( MyGeometry == 1 )
+
+  end if ! end if(capacitor.NE.1 .and. slit_sol==1) then
+
+
+  DO k=1,supercell%geometry%dimensions%indiceMax(z)
+    write(280,*) k, SUM(phi(:,:,k)) !, sum(phiTMP(:,:,k))
+  ENDDO
+  close(280)
+ ! Ade : end modification 20/03/2017
+  
+  DO k=supercell%geometry%dimensions%indiceMin(z), supercell%geometry%dimensions%indiceMax(z)
+      WRITE(316,*) k, c_plus(:,:,k)
+  ENDDO
+  close(316)
+
+  !##########################################################################
+  !#  Main loop to converge towards Poisson-Boltzmann equilibrium 
+  !##########################################################################
 
   ! iterate until charges are equilibrated
   ! Ade : modifications on 23/03/2017
-    time = 0
-    DO WHILE ((.NOT. is_converged) .AND. (time<=timestepmax))
-        CALL backup_phi_c_plus_c_minus ! backup potential and solute concentrations from last step
-        CALL sor ! TODO    ! compute phi with the Successive Overrelation Routine (SOR)
-        CALL just_eq_smolu ! solve smoluchowski (diffusion + electrostatic part) ie not a full smolu
-        ! monitor evolution of phi, c_plus, c_minus w.r.t. the backup at the beginning of the iteration
-        ! this is done only every 10 loops in order not to waste too much time. arbitrary number.
+  time = 0
+  DO WHILE ((.NOT. is_converged) .AND. (time<=timestepmax))
 
-        IF ((time/= timestepmax .and. modulo(time,10)==0) .or. tot_sol_charge==0.0_dp ) THEN ! Ade : removed minus sign in front of timestepmax
-            CALL check_charge_distribution_equilibrium (time, is_converged)
-        END IF
-        time = time + 1 ! Ade : missing incrementing number
-    END DO
+      CALL backup_phi_c_plus_c_minus  ! backup potential and solute concentrations from last step
 
-    ! ---------------------------------------------------
-    ! POSTPROCESSING AT EQUILIBRIUM 
-    ! ---------------------------------------------------
+      CALL sor                        ! compute phi from concentrations with the Successive Overrelation Routine (SOR)
 
-    !
-    ! First, backup the arrays phi, c_plus and c_minus for restarts
-    !
-    open(731, file='output/phi.bin'    , form="unformatted"); write(731) phi    ; close(731)
-    open(731, file='output/c_plus.bin' , form="unformatted"); write(731) c_plus ; close(731)
-    open(731, file='output/c_minus.bin', form="unformatted"); write(731) c_minus; close(731)
+      CALL just_eq_smolu              ! solve Smoluchowski (diffusion + electrostatic part)
 
-    if (geometrie==2 .or. geometrie==15) then ! Cylindrical geometry
-        DO j=1,ly
-            WRITE(281,*) j, phi(j,ly/2,lz/2)
-            WRITE(314,*) j, c_plus(j,ly/2,lz/2)
-            WRITE(315,*) j, c_minus(j,ly/2,lz/2)
-        END DO
-    else
-        DO k=supercell%geometry%dimensions%indiceMin(z), supercell%geometry%dimensions%indiceMax(z)
-            write(281,*) k, SUM(phi(:,:,k)), phi(1,1,k)
-            WRITE(314,*) k, SUM(c_plus(:,:,k))
-            WRITE(315,*) k, SUM(c_minus(:,:,k))
-        END DO
-    end if
-    !call charge_test ! check charge conservation ! TODO rename to call check_charge_conservation ! check charge conservation every 1000 steps (arbitrary number)
-    if( tot_sol_charge == 0.0_dp ) return
-    call print_everything_related_to_charge_equil
+      ! monitor evolution of phi, c_plus, c_minus w.r.t. the backup at the beginning of the iteration
+      ! this is done only every 10 loops in order not to waste too much time. arbitrary number.
+      IF ((time/= timestepmax .and. modulo(time,10)==0) .or. tot_sol_charge==0.0_dp ) THEN 
+          CALL check_charge_distribution_equilibrium (time, target_error_charge, max_error, is_converged)
+      END IF
 
-    IF (is_converged) THEN
-        PRINT*,'Convergence found at step ',time,' after',time,' steps'
-    ELSE
-        STOP 'Equilibrium distribution of salts not found'
-    END IF
+      time = time + 1
 
-    close(314)
-    close(315)
-    close(281)
+  END DO
+  ! end of main loop to converge towards Poisson-Boltzmann equilibrium
 
 
-    CONTAINS
+  !##########################################################################
+  !# Postprocessing once Poisson-Boltzmann equilibrium is reached... or not
+  !##########################################################################
 
-        SUBROUTINE get_timestepmax (a)
-            IMPLICIT NONE
-            INTEGER :: a
-            a = getinput%int("timestepmax_for_PoissonNernstPlanck",1000000)
-            IF (a<=0) STOP "timestepmax_for_PoissonNernstPlanck must be >=1"
-        END SUBROUTINE
+  !
+  ! First, backup the arrays phi, c_plus and c_minus for restarts
+  !
+  open(731, file='output/phi.bin'    , form="unformatted"); write(731) phi    ; close(731)
+  open(731, file='output/c_plus.bin' , form="unformatted"); write(731) c_plus ; close(731)
+  open(731, file='output/c_minus.bin', form="unformatted"); write(731) c_minus; close(731)
+
+  !
+  ! Some output (to be cleaned?)
+  !
+  if (MyGeometry==2 .or. MyGeometry==15) then ! Cylindrical geometry
+      DO j=1,ly
+          WRITE(281,*) j, phi(j,ly/2,lz/2)
+          WRITE(314,*) j, c_plus(j,ly/2,lz/2)
+          WRITE(315,*) j, c_minus(j,ly/2,lz/2)
+      END DO
+  else
+      DO k=supercell%geometry%dimensions%indiceMin(z), supercell%geometry%dimensions%indiceMax(z)
+          write(281,*) k, SUM(phi(:,:,k)), phi(1,1,k)
+          WRITE(314,*) k, SUM(c_plus(:,:,k))
+          WRITE(315,*) k, SUM(c_minus(:,:,k))
+      END DO
+  end if
+
+  if( tot_sol_charge == 0.0_dp ) return
+  call print_everything_related_to_charge_equil
+
+  IF (is_converged) THEN
+      PRINT*,'Convergence found at step ',time,' after',time,' steps'
+  ELSE
+      STOP 'Poisson-Nernst-Planck did not converge to Poisson-Boltzmann equilibrium'
+  END IF
+
+  close(314)
+  close(315)
+  close(281)
+
+
+  !#########################################################################
+  CONTAINS ! in a subroutine?
+
+      SUBROUTINE get_timestepmax( a )
+          IMPLICIT NONE
+          INTEGER :: a
+          a = getinput%int("timestepmax_for_PoissonNernstPlanck",1000000)
+          IF (a<=0) STOP "timestepmax_for_PoissonNernstPlanck must be >=1"
+      END SUBROUTINE
 
 
 

@@ -15,12 +15,12 @@ subroutine sor
     USE constants, ONLY: pi, x, y, z
     USE mod_lbmodel, ONLY: lbm
     USE myallocations
-    use module_input, only: getinput
+    use module_input, only: getinput, verbose
 
     IMPLICIT NONE
 
     integer, parameter :: maxiterations = 500000
-    real(dp), parameter :: threeshold = 1.0e-6 ! convergence tolerance
+    real(dp), parameter :: threshold = 1.0e-6 ! convergence tolerance
     real(dp), parameter :: omega = 1.4_dp ! the over-ralaxation factor. 1.45 proposed by Horbach & Frenkel, PRE64 Eq.17
     real(dp) :: factor, h
     real(dp) :: anorm ! what we want to minimize, ie diff between phi and phi-old
@@ -76,10 +76,10 @@ subroutine sor
                     else 
                         phitmp(i,j,k) = 0.0_dp
                         phistar = 0.0_dp
-                        phiold = phi(i,j,k) ! Ade : I moved phiold here in order to compute the Laplacian of Phi
-                        do l= lbm%lmin, lbm%lmax ! Ade: 22/03/17 the following lines were using the imin, jmin, kmin variables which were already being used (see lines above)
-                            pmin = pbc(i-lbm%vel(l)%coo(x),x)  ! Ade : does fortran count from the first velocity or the second?
-                            qmin = pbc(j-lbm%vel(l)%coo(y),y)  ! Compare with C-code
+                        phiold = phi(i,j,k)                     ! Ade : used to compute the Laplacian of Phi
+                        do l= lbm%lmin, lbm%lmax 
+                            pmin = pbc(i-lbm%vel(l)%coo(x),x)  
+                            qmin = pbc(j-lbm%vel(l)%coo(y),y)  
                             rmin = pbc(k-lbm%vel(l)%coo(z),z)
                             phistar = phistar + lbm%vel(l)%a0 * phi(pmin,qmin,rmin)   
                         end do
@@ -95,24 +95,28 @@ subroutine sor
     
         dphi = 0.0_dp ! dphi is the difference between the electric potential between the beginning and end of the iteration.
         ! count the number of times the array is not zero
-        n1 = count(abs(phi_old) > threeshold)
+        n1 = count(abs(phi_old) > threshold)
 
-        ! at each node, if phiold is different from 0, calculate the normalized relative differance 
+        ! at each node, if phiold is different from 0, compute the normalized relative difference 
         ! between new and old potential
-        if(n1/=0) dphi = sum( abs(  (phi - phi_old)/phi_old ), mask= abs(phi_old)>threeshold) / real(n1,kind=dp) 
+        if(n1/=0) dphi = sum( abs(  (phi - phi_old)/phi_old ), mask= abs(phi_old)>threshold) / real(n1,kind=dp) 
         phi_old = phi
-        if(anorm <= threeshold*anormf) then
+
+        ! BR : the convergence criteria should be thought more carefully
+        if(anorm <= threshold*anormf) then
             exit convergenceloop
         else if(iter>1 .and. dphi<1.0d-8) then
             exit convergenceloop
         end if
 
-        ! tous les 100 pas, écrit où on en est
-        if( modulo(iter, 100)==0 ) then
-            print*, iter,anorm,threeshold*anormf
+        ! report every 100 steps
+        if( verbose ) then
+          if( modulo(iter, 100)==0 ) then
+            print*, iter,anorm,threshold*anormf
             write(105,*) '----------------------------------------------'
             write(105,*) 'anormf = ', anormf
             write(105,*) '----------------------------------------------'
+          end if
         end if
 
     end do convergenceloop
@@ -121,7 +125,8 @@ subroutine sor
     ! tell user if maximum convergence steps is reached, ie if no convergence is found
     if( iter >= maxiterations ) stop 'maximum iterations 500 000 reached without convergence in sor'
 
-
+    ! compute charge corresponding to this distribution of potential
+    !     this is used to compute the charge on the electrodes (when relevant)
     do k = kmin, kmax
         do j = jmin, jmax
             do i = imin, imax
@@ -137,11 +142,14 @@ subroutine sor
         end do
     end do
 
-    if( iter > 1 ) then
-        if(anorm <= threeshold*anormf) then
-            print*,'SOR converged in',iter-1,'steps with anormf0 =', anormf0,' because anorm <= threeshold*anormf'
+    !if( iter > 1 ) then
+    if( iter > 1 .and. verbose ) then
+        if(anorm <= threshold*anormf) then
+            !print*,'SOR converged in',iter-1,'steps with anormf0 =', anormf0,' because anorm <= threshold*anormf'
+            print*,'SOR converged in',iter-1,'steps'
         else if(iter>1 .and. dphi<1.0d-8) then
-            print*,'SOR converged in',iter-1,'steps with anormf0 =', anormf0,' because dphi < 1.0d-8'
+            !print*,'SOR converged in',iter-1,'steps with anormf0 =', anormf0,' because dphi < 1.0d-8'
+            print*,'SOR converged in',iter-1,'steps'
         end if
     end if
 

@@ -11,7 +11,7 @@ subroutine charges_init
 
     implicit none
     real(dp), allocatable, dimension(:,:,:) :: c_plusT, c_minusT
-    integer  :: count_solid, count_fluid, count_solid_int, geometrie, i,j,k, lx, ly, lz, ENNE,&
+    integer  :: count_solid, count_fluid, count_solid_int, MyGeometry, i,j,k, lx, ly, lz, ENNE,&
                 capacitor, m, slit_sol, LB1, UB1, LB2, UB2, LW, UW, width1, width2, InnerRadius, OuterRadius
     real(dp) :: tot_sol_charge_solid, tot_sol_charge_fluid, SF, PrefactLP1, PrefactLP2, PrefactLP3, Alpha
     real(dp) :: in_c_plus_solid, in_c_plus_fluid, in_c_minus_solid, in_c_minus_fluid, FixedPotentialUP, &
@@ -38,7 +38,7 @@ subroutine charges_init
     ly = supercell%geometry%dimensions%indiceMax(y)
     lz = supercell%geometry%dimensions%indiceMax(z)
     
-    geometrie = getinput%int('geometryLabel',-1) ! Ade: 15/03/2017
+    MyGeometry = getinput%int('geometryLabel',-1) ! Ade: 15/03/2017
     slit_sol = getinput%int('slit_sol',0) ! 1= true 0 = false
     tot_sol_charge = getinput%dp('tot_sol_charge',0._dp)
     lambda_d = getinput%dp('lambda_D',0._dp)
@@ -97,8 +97,9 @@ subroutine charges_init
     phi = 0._dp
     !if(.NOT.Constant_Potential) then ! Two distinct regions where. Constant_Potential = true here
     if(Constant_Potential==1) then ! Two distinct regions where. Constant_Potential = true here
-      if(geometrie==2 .or. geometrie==15) then ! Cylindrical Geomrtry
+      if(MyGeometry==2 .or. MyGeometry==15) then ! Cylindrical Geometry
         rorigin = [ real(lx+1,dp)/2.0_dp, real(ly+1,dp)/2.0_dp ]
+        print*, 'Coaxial capacitor'
         print*, 'rorigin in charges_init is =', rorigin
         do i = 1, lx
           do j = 1, ly
@@ -116,7 +117,7 @@ subroutine charges_init
         enddo
       else ! Slit geometry
         print*, '=================================================================================================='
-        print*, 'its true baby'
+        print*, 'Parallel plate capacitor'
         do i = 1, lx
           do j = 1, ly
             do k = 1, lz
@@ -200,7 +201,7 @@ subroutine charges_init
       print*,'m_fluid =',in_c_minus_fluid
       print*,'*********************************************************************'
 
-      print*,'ATTENTION ONLY SURFACE CHARGE IS OK FOR NOW'
+      !print*,'ATTENTION ONLY SURFACE CHARGE IS OK FOR NOW'
     end if
 
     where(node%nature==solid .and. node%isInterfacial )
@@ -215,8 +216,8 @@ subroutine charges_init
     end where
 
 
-    ! This modication was done in order to simulate a capacitor. A wall will have then 
-    ! negative charges, whilst the other will have positive charges.
+    ! This modication was done in order to simulate a parallel plate capacitor with fixed charges.
+    !     The charge is positive on the left wall, negative on the right wall
     if (capacitor.EQ.1) then
           c_plus(:,:,m) = in_c_plus_solid
           c_minus(:,:,m) = -in_c_plus_solid
@@ -244,7 +245,8 @@ subroutine charges_init
     
 
     if(capacitor.NE.1 .and. slit_sol==1) then
-      if( geometrie == 1 .or. geometrie==12 .or. geometrie==13 .or. geometrie==14 ) then   ! slit pore geometry
+      if( MyGeometry == 1 .or. MyGeometry==12 .or. MyGeometry==13 .or. MyGeometry==14 ) then   ! slit pore geometry
+          ! Question BR->ADE: how can it be 12, 13 or 14?
           Alpha = getinput%dp('Alpha',0._dp)  ! Attention!!!!!! This is dangerous. We should probably  
                                               ! compute its value in another subroutine
           ENNE = lz-(2*m) ! Nb of fluid nodes
@@ -303,7 +305,6 @@ subroutine charges_init
     close(277)
     close(276)
 
-    ! TODO call charge_test
 
     ! read diffusion coefficients of solute + and solute -
     d_plus = getinput%dp( 'D_plus', defaultvalue=0._dp, assert=">0")
