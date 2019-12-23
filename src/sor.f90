@@ -12,6 +12,7 @@ subroutine sor
 
     USE precision_kinds, ONLY: dp, i2b
     USE system, ONLY: bjl, tot_sol_charge, pbc, anormf0, phi, LaplacianOfPhi, kbt, c_plus, c_minus, supercell, node, time, t
+    use module_convergence
     USE constants, ONLY: pi, x, y, z
     USE mod_lbmodel, ONLY: lbm
     USE myallocations
@@ -105,7 +106,8 @@ subroutine sor
         ! BR : the convergence criteria should be thought more carefully
         if(anorm <= threshold*anormf) then
             exit convergenceloop
-        else if(iter>1 .and. dphi<1.0d-8) then
+        !else if(iter>1 .and. dphi<1.0d-8) then
+        else if(iter>1 .and. dphi<target_error%target_error_sor ) then
             exit convergenceloop
         end if
 
@@ -147,7 +149,7 @@ subroutine sor
         if(anorm <= threshold*anormf) then
             !print*,'SOR converged in',iter-1,'steps with anormf0 =', anormf0,' because anorm <= threshold*anormf'
             print*,'SOR converged in',iter-1,'steps'
-        else if(iter>1 .and. dphi<1.0d-8) then
+        else if(iter>1 .and. dphi<target_error%target_error_sor ) then
             !print*,'SOR converged in',iter-1,'steps with anormf0 =', anormf0,' because dphi < 1.0d-8'
             print*,'SOR converged in',iter-1,'steps'
         end if

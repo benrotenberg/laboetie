@@ -28,6 +28,7 @@ OBJS = \
 	 $(SRCDIR)/module_input.f90 \
 	 $(SRCDIR)/module_lbmodel.f90 \
 	 $(SRCDIR)/module_system.f90 \
+	 $(SRCDIR)/module_convergence.f90 \
 	 $(SRCDIR)/module_myallocations.f90 \
 	 $(SRCDIR)/module_mathematica.f90 \
 	 $(SRCDIR)/module_time.f90 \

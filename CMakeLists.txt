@@ -82,6 +82,7 @@ set(laboetie_SRCS
 	src/module_bounceback.f90
 	src/module_collision.f90
 	src/module_constants.f90
+	src/module_convergence.f90
 	src/module_external_forces.f90
 	src/module_geometry.f90
 	src/module_input.f90
@@ -89,7 +90,6 @@ set(laboetie_SRCS
 	src/module_lbmodel.f90
 	src/module_mathematica.f90
 	src/module_moment_propagation.f90
-	#src/module_moment_propagation_max.f90
 	src/module_myallocations.f90
 	src/module_precision_kinds.f90
 	src/module_propagation.f90

@@ -12,6 +12,7 @@ module module_transient_regime
     USE precision_kinds, only: dp
     USE system, only: fluid, supercell, node, lbm, n, pbc, solute_force, phi, c_plus, c_minus, LaplacianOfPhi, &
                       el_curr_x, el_curr_y, el_curr_z, t, ion_curr_x, ion_curr_y, ion_curr_z, elec_slope !, cations_NEcurr, anions_NEcurr
+    use module_convergence
     use module_collision, only: collide
     use module_input, only: getinput
     USE constants, only: x, y, z
@@ -23,9 +24,11 @@ module module_transient_regime
     implicit none
     real(dp), intent(inout), dimension(:,:,:) :: jx, jy, jz
     integer :: i,j,k,l, lmin, lmax, ios, lx, ly, lz, Constant_Potential ! Ade : I have declared t in system
-    integer :: countFluidNodes, print_frequency, supercellgeometrylabel, tfext, print_files_frequency, GL, print_every, countNodesInParticle
+    integer :: supercellgeometrylabel, tfext, GL
+    integer :: print_frequency, input_print_frequency, print_files_frequency
     integer(kind(fluid)), allocatable, dimension(:,:,:) :: nature
-    real(dp) :: fext_tmp(3), l2err, target_error_mass_flux, target_error_charge, max_error_charge
+    real(dp) :: fext_tmp(3)
+    real(dp) :: l2err, target_error_mass_flux, target_error_charge, max_error_charge
     real(dp) :: Jxx, Jyy, Jzz, Somma4, Somma5, Somma6, FixedPotentialUP, FixedPotentialDOWN
     real(dp), allocatable, dimension(:,:,:) :: density, jx_old, jy_old, jz_old, fextx, fexty, fextz, F1, F2, F3
     real(dp), allocatable, dimension(:) :: a0, a1
@@ -40,7 +43,6 @@ module module_transient_regime
     LOGICAL :: RestartPNP, i_exist
     integer :: maxEquilibrationTimestep, LW, UW, LB1, UB1, LB2, UB2 !, Starte 
     real(dp), parameter :: zerodp = 0._dp
-    real(dp) :: ChargeZp, ChargeZm
 
 
 
@@ -82,31 +84,29 @@ module module_transient_regime
     ly = supercell%geometry%dimensions%indiceMax(y)
     lz = supercell%geometry%dimensions%indiceMax(z)
 
-    !RestartPNP = getinput%log("RestartPNP", .TRUE.)
-
     !
     ! Print info to terminal every that number of steps
     !
-    print_frequency = getinput%int('print_frequency', defaultvalue=max(int(50000/(lx*ly*lz)),1), assert=">0" ) ! this number is my own optimal. To be generalized on strong criteria some day.
+    ! start with 1, then increase to 10, 100, 1000 -- unless the input frequency is smaller than 1000
+    input_print_frequency = getinput%int('print_frequency', defaultvalue=1000, assert=">0" )
+    print_frequency = 1
+
 
     !
     ! WRITE velocity profiles to terminal every that number of steps
     !
     print_files_frequency = getinput%int( "print_files_frequency", defaultvalue = huge(1) )
 
-    print_every = getinput%int("print_every", defaultvalue=0) ! reads from lb.in file
-                                                                 ! the frequency of printing time
-                                                                 ! the default value needs to be changed eventually
-    countFluidNodes = count( node%nature==fluid )
 
-
+    !
     ! Target values to monitor convergence
+    !
 
     !   on mass flux (note: this on L1 norm for difference of absolute fluxes)
-    target_error_mass_flux = getinput%dp("target_error_mass_flux", 1.D-10)
+    target_error_mass_flux =target_error%target_error_mass_flux 
 
     !   on potential and ion concentrations (note: this on relative values)
-    target_error_charge = getinput%dp('target_error_charge',1.D-12)
+    target_error_charge = target_error%target_error_charge
 
 
     allocate( density(lx,ly,lz), source=sum(n,4), stat=ios)
@@ -146,8 +146,7 @@ module module_transient_regime
     allocate( a1(lmax), source=lbm%vel(:)%a1)
 
     !
-    ! Tabulate the index of the node one finishes if one starts from a node and a velocity index l
-    ! per direction
+    ! Tabulate the index of the node one finishes if one starts from a node and a velocity index l per direction
     !
     allocate( il(lbm%lmin:lbm%lmax, 1:lx), stat=ios)
     if (ios /= 0) stop "il: Allocation request denied"
@@ -224,11 +223,17 @@ module module_transient_regime
     do t = 1, huge(t)
 
         ! 
-        ! Print sdtout timestep, etc.
+        ! Print some info to stdout: time step and current/target values for convergence.
         !
-        ! BR: this should be cleaned up (both default print_frequency and output
-        if( modulo(t, print_frequency) == 0) PRINT*, t, "crit. on mass flux ",real(l2err),"(target",real(target_error_mass_flux,4),")"
-        if( modulo(t, print_frequency) == 0) PRINT*, "                  on charge    ",real(max_error_charge),"(target",real(target_error_charge,4),")"
+        if( modulo(t, print_frequency) == 0) then
+            if( t==10    )   print_frequency = min( input_print_frequency, 10    )
+            if( t==100   )   print_frequency = min( input_print_frequency, 100   )
+            if( t==1000  )   print_frequency = min( input_print_frequency, 1000  )
+
+            WRITE(*,"(4X,I8,A,2(E12.6,A,E12.6,A))") t, " crit. on mass flux ",l2err," ( target ",target_error_mass_flux," ) and on charge ", max_error_charge, " ( target ", target_error_charge, " )"
+            !PRINT*, t, "crit. on mass flux ",real(l2err),"(target",real(target_error_mass_flux,4),")"
+            !PRINT*, "                  on charge    ",real(max_error_charge),"(target",real(target_error_charge,4),")"
+        end if
 
         !
         ! Print velocity profiles, etc.
@@ -393,13 +398,16 @@ module module_transient_regime
         ! First, we reach convergence without external forces.
         ! Then, we turn on the external forces and iterate again until convergence
         if(mass_flux_convergence_IsReached) then
+
             ! was it converged with or without the external forces ?
             if( .not.mass_flux_convergence_IsReached_without_fext ) then
                 mass_flux_convergence_IsReached_without_fext = .true.
                 mass_flux_convergence_IsReached = .false.
+
             else if( mass_flux_convergence_IsReached_without_fext ) then
                 mass_flux_convergence_IsReached_with_fext = .true.
             end if
+
         end if
 
 
@@ -407,18 +415,17 @@ module module_transient_regime
         !############################################
         !# Apply external force
         !############################################
-        !if( convergenceIsReached .and. charge_convergenceIsReached ) then
         if( mass_flux_convergence_IsReached ) then
 
             ! if you are already converged without then with f_ext then exit time loop. Stationary state is found.
             if( mass_flux_convergence_IsReached_without_fext .and. mass_flux_convergence_IsReached_with_fext .and. t>2) then
-                !exit    ! we are done: exit loop over time steps
                 if( charge_convergence_IsReached ) exit    ! we are done: exit loop over time steps
 
             ! if you have already converged without fext, but not yet with fext, then enable fext
             else if(mass_flux_convergence_IsReached_without_fext .and. .not.mass_flux_convergence_IsReached_with_fext) then
                 tfext=t+1
                 call apply_external_forces( fextx, fexty, fextz, nature)
+
             end if  
 
         end if 

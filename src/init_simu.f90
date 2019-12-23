@@ -6,6 +6,7 @@ SUBROUTINE init_simu
     USE io, only: print_header, print_input_in_output_folder, inquireNecessaryFilesExistence
     USE myallocations
     use module_input, only: getinput
+    use module_convergence
 
     IMPLICIT NONE
 
@@ -13,10 +14,11 @@ SUBROUTINE init_simu
     integer :: l
 
     CALL print_header
-    CALL inquireNecessaryFilesExistence  ! check that input, output folder and file ./lb.in exist
-    CALL init_everything_related_to_lb_model ! init everything related to D3Q15 or D3Q19 etc ie LB models
-    CALL supercell_definition ! prepare supercell geometry
-    CALL scheduler ! tmom, tmax! schedule simulation
+    CALL inquireNecessaryFilesExistence         ! check that input, output folder and file ./lb.in exist
+    CALL init_everything_related_to_lb_model    ! init everything related to D3Q15 or D3Q19 etc ie LB models
+    CALL supercell_definition                   ! prepare supercell geometry
+    CALL init_convergence_targets               ! target values for convergence 
+    CALL scheduler                              ! tmom, tmax! schedule simulation
 
     !
     ! Initialize solvent populations, noted n(x,y,z,l) in laboetie.
