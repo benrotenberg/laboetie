@@ -25,11 +25,9 @@ SUBROUTINE poisson_nernst_planck
   integer :: print_freq
   character(len=200) :: ifile
 
-  open(314, file='output/c_plus_alongZ.dat')
-  open(315, file='output/c_minus_alongZ.dat')
-  open(316, file='output/c_plus_beforeLoop.dat')
-  open(280, file='output/PHI_PNP1.dat')
-  open(281, file='output/PHI_PNP2.dat')
+  !open(314, file='output/c_plus_alongZ.dat')
+  !open(315, file='output/c_minus_alongZ.dat')
+
   ! If tot_sol_charge is 0, neutral system, and thus no need to go continue here
   tot_sol_charge = getinput%dp('tot_sol_charge',0._dp)
   !IF ( ABS(tot_sol_charge) <= EPSILON(1._dp) .and. ABS(lambda_D) <= EPSILON(1._dp)) RETURN ! Ade: 22/05/17 I added the and
@@ -125,16 +123,6 @@ SUBROUTINE poisson_nernst_planck
   end if ! end if(capacitor.NE.1 .and. slit_sol==1) then
 
 
-  DO k=1,supercell%geometry%dimensions%indiceMax(z)
-    write(280,*) k, SUM(phi(:,:,k)) !, sum(phiTMP(:,:,k))
-  ENDDO
-  close(280)
- ! Ade : end modification 20/03/2017
-  
-  DO k=supercell%geometry%dimensions%indiceMin(z), supercell%geometry%dimensions%indiceMax(z)
-      WRITE(316,*) k, c_plus(:,:,k)
-  ENDDO
-  close(316)
 
   !##########################################################################
   !#  Main loop to converge towards Poisson-Boltzmann equilibrium 
@@ -189,17 +177,25 @@ SUBROUTINE poisson_nernst_planck
   ! Some output (to be cleaned?)
   !
   if (MyGeometry==2 .or. MyGeometry==15) then ! Cylindrical geometry
-      DO j=1,ly
-          WRITE(281,*) j, phi(j,ly/2,lz/2)
-          WRITE(314,*) j, c_plus(j,ly/2,lz/2)
-          WRITE(315,*) j, c_minus(j,ly/2,lz/2)
+
+      ! write phi, c_plus, c_minus in mid yz plane
+      open(281, file='output/pnp_phi_cp_cm_in_mid_yz_plane.dat')
+      WRITE(281,*) '#i, phi(i,ly/2,lz/2), c_plus(i,ly/2,lz/2), c_minus(i,ly/2,lz/2)'
+      DO i=1,lx
+          WRITE(281,*) i, phi(i,ly/2,lz/2), c_plus(i,ly/2,lz/2), c_minus(i,ly/2,lz/2)
       END DO
-  else
+      close(281)
+
+  else ! slit geometry
+
+      ! write phi, c_plus, c_minus (their sum over x and y) as a function of z
+      open(281, file='output/pnp_avg_phi_cp_cm_vs_z.dat')
+      write(281,*) '#k, SUM(phi(:,:,k))/(lx*ly), SUM(c_plus(:,:,k))/(lx*ly), SUM(c_minus(:,:,k))/(lx*ly)'
       DO k=supercell%geometry%dimensions%indiceMin(z), supercell%geometry%dimensions%indiceMax(z)
-          write(281,*) k, SUM(phi(:,:,k)), phi(1,1,k)
-          WRITE(314,*) k, SUM(c_plus(:,:,k))
-          WRITE(315,*) k, SUM(c_minus(:,:,k))
+          write(281,*) k, SUM(phi(:,:,k))/(lx*ly), SUM(c_plus(:,:,k))/(lx*ly), SUM(c_minus(:,:,k))/(lx*ly)
       END DO
+      close(281)
+
   end if
 
   if( tot_sol_charge == 0.0_dp ) return
@@ -211,9 +207,8 @@ SUBROUTINE poisson_nernst_planck
       STOP 'Poisson-Nernst-Planck did not converge to Poisson-Boltzmann equilibrium'
   END IF
 
-  close(314)
-  close(315)
-  close(281)
+  !close(314)
+  !close(315)
 
 
   !#########################################################################

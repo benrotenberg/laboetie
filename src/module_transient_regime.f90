@@ -48,20 +48,16 @@ module module_transient_regime
 
     !! ADELCHI COULD YOU PLEASE REMOVE ALL THE UNNECESSERAY WRITINGS? TIME CONSUMING + MAKES THE CODE HARD TO READ
     open(325, file = "output/phi.dat")
+    open(395, file='output/elec_ion_curr.dat')
+    !open(1316, file = "output/SFX.dat")
+    !open(1323, file = "output/SFY.dat")
+    open(1324, file = "output/SFZ.dat")
 
     Constant_Potential = getinput%int("Constant_Potential", 0) ! Ade : 1=true, 0=false
     if (Constant_Potential.eq.1) then
       open(391, file = "output/electrode_charge.dat")
     end if
 
-    !open(393, file='output/cation_curr.dat')
-    !open(394, file='output/anion_curr.dat')
-    open(395, file='output/elec_ion_curr.dat')
-    ! ADE : to answer Max's question. I have removed quite a few writings. The ones that follow might be unecessary
-    ! better ask Benjamin which files he prefers to keep.
-    open(1316, file = "output/SFX.dat")
-    open(1323, file = "output/SFY.dat")
-    open(1324, file = "output/SFZ.dat")
 
     RestartPNP = getinput%log("RestartPNP", defaultValue=.TRUE.)
     if( .not. RestartPNP) then
@@ -169,7 +165,6 @@ module module_transient_regime
     compensate_f_ext = getinput%log( "compensate_f_ext", defaultvalue = .false.)
     if(compensate_f_ext) then
         open(79, file = "./output/v_centralnode.dat")
-        !open(80, file = "./output/rho_centralnode.dat")
     end if
 
     write_total_mass_flux = getinput%log( "write_total_mass_flux", defaultvalue = .false.)
@@ -468,8 +463,6 @@ module module_transient_regime
           write(391,*) t, Somma4, Somma5, Somma6
         end if
 
-        !write(393,*) t, cations_NEcurr
-        !write(394,*) t, anions_NEcurr
         write(395,*) t, el_curr_x, el_curr_y, el_curr_z, ion_curr_x, ion_curr_y, ion_curr_z
    
 
@@ -536,31 +529,26 @@ module module_transient_regime
    CLOSE(66)
    CLOSE(56)
  
-   ! 2. Solute Force
+   ! 2. Solute Force (averages over xy slabs, as a function of z)
    DO k=1,lz
-     WRITE(1316,*) k, SUM(solute_force(:,:,k,1)) ! Ade : The fluid is moving in the y-direction whenever a slit 
-                                                 ! case is imposed, as the walls are located at z = 0 and z = L
-                                                 ! which is the reason why we are observing F_y(z). 2=>y and k=>z
-     WRITE(1323,*) k, SUM(solute_force(:,:,k,2)) 
-     WRITE(1324,*) k, SUM(solute_force(:,:,k,3)) 
+     !WRITE(1316,*) k, SUM(solute_force(:,:,k,1))/(lx*ly)  
+     !WRITE(1323,*) k, SUM(solute_force(:,:,k,2))/(lx*ly) 
+     WRITE(1324,*) k, SUM(solute_force(:,:,k,3))/(lx*ly) 
    ENDDO 
    CLOSE(1316)
    CLOSE(1323)
    CLOSE(1324)
 
-   ! 3. Potential PHI
+   ! 3. Potential PHI (averages over xy slabs, as a function of z)
    DO k=1,lz
-      write(325,*) k, SUM(phi(:,:,k)) 
+      write(325,*) k, SUM(phi(:,:,k))/(lx*ly) 
    END DO
 
    CLOSE(325)
 
    CLOSE(79)
-   !CLOSE(80)
    CLOSE(65)
    CLOSE(391)
-   !CLOSE(393)
-   !CLOSE(394)
    CLOSE(395)
 
 
