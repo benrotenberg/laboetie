@@ -14,7 +14,7 @@ module module_transient_regime
                       el_curr_x, el_curr_y, el_curr_z, t, ion_curr_x, ion_curr_y, ion_curr_z, elec_slope !, cations_NEcurr, anions_NEcurr
     use module_convergence
     use module_collision, only: collide
-    use module_input, only: getinput
+    use module_input, only: getinput, verbose
     USE constants, only: x, y, z
     use module_bounceback, only: bounceback
     use module_propagation, only: propagation
@@ -46,12 +46,13 @@ module module_transient_regime
 
 
 
-    !! ADELCHI COULD YOU PLEASE REMOVE ALL THE UNNECESSERAY WRITINGS? TIME CONSUMING + MAKES THE CODE HARD TO READ
     open(325, file = "output/phi.dat")
     open(395, file='output/elec_ion_curr.dat')
-    !open(1316, file = "output/SFX.dat")
-    !open(1323, file = "output/SFY.dat")
     open(1324, file = "output/SFZ.dat")
+    if (verbose) then
+        open(1316, file = "output/SFX.dat")
+        open(1323, file = "output/SFY.dat")
+    endif
 
     Constant_Potential = getinput%int("Constant_Potential", 0) ! Ade : 1=true, 0=false
     if (Constant_Potential.eq.1) then
@@ -114,15 +115,18 @@ module module_transient_regime
     allocate( jz_old (lx,ly,lz), source=0._dp )
 
     OPEN(66, FILE="output/mass-flux_profile_along_z.dat")
-    OPEN(67, FILE="output/mass-flux_profile_along_y.dat")
-    OPEN(68, FILE="output/mass-flux_profile_along_x.dat")
     WRITE(66,*) "# z, <ρ.v_x>_{x,y}, <ρ.v_y>_{x,y}, <ρ.v_z>_{x,y}"
-    WRITE(67,*) "# y, <ρ.v_x>_{x,z}, <ρ.v_y>_{x,z}, <ρ.v_z>_{x,z}"
-    WRITE(68,*) "# x, <ρ.v_x>_{y,z}, <ρ.v_y>_{y,z}, <ρ.v_z>_{y,z}"
 
-    OPEN(56, FILE="output/mean-density_profile_along_z.dat")
-    OPEN(57, FILE="output/mean-density_profile_along_y.dat")
-    OPEN(58, FILE="output/mean-density_profile_along_x.dat")
+    if ( verbose ) then
+      OPEN(67, FILE="output/mass-flux_profile_along_y.dat")
+      OPEN(68, FILE="output/mass-flux_profile_along_x.dat")
+      WRITE(67,*) "# y, <ρ.v_x>_{x,z}, <ρ.v_y>_{x,z}, <ρ.v_z>_{x,z}"
+      WRITE(68,*) "# x, <ρ.v_x>_{y,z}, <ρ.v_y>_{y,z}, <ρ.v_z>_{y,z}"
+
+      OPEN(56, FILE="output/mean-density_profile_along_z.dat")
+      OPEN(57, FILE="output/mean-density_profile_along_y.dat")
+      OPEN(58, FILE="output/mean-density_profile_along_x.dat")
+    end if
 
     allocate( nature (lx,ly,lz), source=node%nature)
     allocate( fextx(lx,ly,lz), source=zerodp)
@@ -234,27 +238,36 @@ module module_transient_regime
         ! Print velocity profiles, etc.
         !
         if( modulo(t, print_files_frequency) == 0 ) then
+
+            ! most frequent case
             WRITE(66,*)"# timestep",t
-            WRITE(67,*)"# timestep",t
-            WRITE(68,*)"# timestep",t
-            WRITE(56,*)"# timestep",t
-            WRITE(57,*)"# timestep",t
-            WRITE(58,*)"# timestep",t
             DO k=1,lz
-                WRITE(56,*) k, SUM(density(:,:,k))/ MAX( COUNT(density(:,:,k)>eps)  ,1)
                 WRITE(66,*) k, SUM(jx(:,:,k)), SUM(jy(:,:,k)), SUM(jz(:,:,k))
             END DO
-            DO k=1,ly
-                WRITE(57,*) k, SUM(density(:,k,:))/ MAX( COUNT(density(:,k,:)>eps)  ,1)
-                WRITE(67,*) k, SUM(jx(:,k,:)), SUM(jy(:,k,:)), SUM(jz(:,k,:))
-            END DO
-            DO k=1,lx
-                WRITE(58,*) k, SUM(density(k,:,:))/ MAX( COUNT(density(k,:,:)>eps)  ,1)
-                WRITE(68,*) k, SUM(jx(k,:,:)), SUM(jy(k,:,:)), SUM(jz(k,:,:))
-            END DO
-            WRITE(66,*)
-            WRITE(67,*)
-            WRITE(68,*)
+ 
+            ! only if we really want this
+            if (verbose) then
+               WRITE(67,*)"# timestep",t
+               WRITE(68,*)"# timestep",t
+               WRITE(56,*)"# timestep",t
+               WRITE(57,*)"# timestep",t
+               WRITE(58,*)"# timestep",t
+               DO k=1,lz
+                   WRITE(56,*) k, SUM(density(:,:,k))/ MAX( COUNT(density(:,:,k)>eps)  ,1)
+               END DO
+               DO k=1,ly
+                   WRITE(57,*) k, SUM(density(:,k,:))/ MAX( COUNT(density(:,k,:)>eps)  ,1)
+                   WRITE(67,*) k, SUM(jx(:,k,:)), SUM(jy(:,k,:)), SUM(jz(:,k,:))
+               END DO
+               DO k=1,lx
+                   WRITE(58,*) k, SUM(density(k,:,:))/ MAX( COUNT(density(k,:,:)>eps)  ,1)
+                   WRITE(68,*) k, SUM(jx(k,:,:)), SUM(jy(k,:,:)), SUM(jz(k,:,:))
+               END DO
+               WRITE(66,*)
+               WRITE(67,*)
+               WRITE(68,*)
+            end if
+
         end if
 
         !
@@ -485,71 +498,69 @@ module module_transient_regime
 
    ! 1. Print velocity field
    WRITE(66,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
-   WRITE(67,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
-   WRITE(68,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
-   WRITE(56,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
-   WRITE(57,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
-   WRITE(58,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
-  
+
+   if ( verbose ) then
+      WRITE(67,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
+      WRITE(68,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
+      WRITE(56,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
+      WRITE(57,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
+      WRITE(58,*)"# Steady state with convergence threshold on mass flux", REAL(target_error_mass_flux)
+   end if  
+
    GL = getinput%int("geometryLabel", defaultvalue=0) ! if GL=-1 =>bulk case
 
    if (GL==2) then                      ! Cylindrical geometry
 
-      Jxx = 0
-      Jyy = 0
-      Jzz = 0
-      DO i=1,lx
-        Jxx = jx(i,max(ly/2,1),max(lz/2,1))
-        Jyy = jy(i,max(ly/2,1),max(lz/2,1))
-        Jzz = jz(i,max(ly/2,1),max(lz/2,1))
-        WRITE(67,*) i, Jxx, Jyy, Jzz
-      END DO
+      if ( verbose ) then
+         Jxx = 0
+         Jyy = 0
+         Jzz = 0
+         DO i=1,lx
+           Jxx = jx(i,max(ly/2,1),max(lz/2,1))
+           Jyy = jy(i,max(ly/2,1),max(lz/2,1))
+           Jzz = jz(i,max(ly/2,1),max(lz/2,1))
+           WRITE(67,*) i, Jxx, Jyy, Jzz
+         END DO
+     end if
 
    else
 
      DO k=1,lz
         WRITE(66,*) k, SUM(jx(:,:,k)), SUM(jy(:,:,k)), SUM(jz(:,:,k))
-        WRITE(56,*) k, SUM(density(:,:,k))/ MAX( COUNT(density(:,:,k)>eps) ,1)
      END DO
-     DO k=1,ly
-        WRITE(67,*) k, SUM(jx(:,k,:)), SUM(jy(:,k,:)), SUM(jz(:,k,:))
-        WRITE(57,*) k, SUM(density(:,k,:))/ MAX( COUNT(density(:,k,:)>eps) ,1)
-     END DO
-     DO k=1,lx
-        WRITE(68,*) k, SUM(jx(k,:,:)), SUM(jy(k,:,:)), SUM(jz(k,:,:))
-        WRITE(58,*) k, SUM(density(k,:,:))/ MAX( COUNT(density(k,:,:)>eps) ,1)
-     END DO
+
+     if ( verbose ) then
+        DO k=1,lz
+           WRITE(56,*) k, SUM(density(:,:,k))/ MAX( COUNT(density(:,:,k)>eps) ,1)
+        END DO
+        DO k=1,ly
+           WRITE(67,*) k, SUM(jx(:,k,:)), SUM(jy(:,k,:)), SUM(jz(:,k,:))
+           WRITE(57,*) k, SUM(density(:,k,:))/ MAX( COUNT(density(:,k,:)>eps) ,1)
+        END DO
+        DO k=1,lx
+           WRITE(68,*) k, SUM(jx(k,:,:)), SUM(jy(k,:,:)), SUM(jz(k,:,:))
+           WRITE(58,*) k, SUM(density(k,:,:))/ MAX( COUNT(density(k,:,:)>eps) ,1)
+        END DO
+     end if
 
    end if
 
-   CLOSE(68)
-   CLOSE(58)
-   CLOSE(67)
-   CLOSE(57)
-   CLOSE(66)
-   CLOSE(56)
  
    ! 2. Solute Force (averages over xy slabs, as a function of z)
    DO k=1,lz
-     !WRITE(1316,*) k, SUM(solute_force(:,:,k,1))/(lx*ly)  
-     !WRITE(1323,*) k, SUM(solute_force(:,:,k,2))/(lx*ly) 
      WRITE(1324,*) k, SUM(solute_force(:,:,k,3))/(lx*ly) 
    ENDDO 
-   CLOSE(1316)
-   CLOSE(1323)
-   CLOSE(1324)
+   if ( verbose ) then
+     DO k=1,lz
+        WRITE(1316,*) k, SUM(solute_force(:,:,k,1))/(lx*ly)  
+        WRITE(1323,*) k, SUM(solute_force(:,:,k,2))/(lx*ly) 
+     ENDDO 
+   end if
 
    ! 3. Potential PHI (averages over xy slabs, as a function of z)
    DO k=1,lz
       write(325,*) k, SUM(phi(:,:,k))/(lx*ly) 
    END DO
-
-   CLOSE(325)
-
-   CLOSE(79)
-   CLOSE(65)
-   CLOSE(391)
-   CLOSE(395)
 
 
    !
@@ -563,6 +574,27 @@ module module_transient_regime
       END DO
    END DO
    CLOSE(69)
+
+   ! close files that may still be open
+   close(325)
+   close(395)
+   close(66)
+   close(1324)
+
+   if ( verbose ) then
+      close(68)
+      close(58)
+      close(67)
+      close(57)
+      close(56)
+      close(1316)
+      close(1323)
+   end if
+
+
+   if( write_total_mass_flux ) close(65)
+   if(compensate_f_ext) close(79)
+   if (Constant_Potential.eq.1) close(391)
 
 end subroutine transient_regime
 

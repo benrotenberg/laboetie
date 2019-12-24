@@ -50,16 +50,19 @@ subroutine check_charge_distribution_equilibrium( time, target_error, max_error,
 
   ! inform user
   if( verbose ) then
+
     if (modulo(time,100)==0) then
-     print*,' time =',time
-     print*,'    diff_phi     =',dphi, n
-     print*,'    diff_c_plus  =',dcp, p
-     print*,'    diff_c_minus =',dcm, q
+      print*,' time =',time
+      print*,'    diff_phi     =',dphi, n
+      print*,'    diff_c_plus  =',dcp, p
+      print*,'    diff_c_minus =',dcm, q
     endif
+
+    ! write to diff_c
+    write(99,*) time, dphi, dcp, dcm
+
   endif
 
-  ! write to diff_c
-  write(99,*) time, dphi, dcp, dcm
   close(99)
 
   ! now turn logical off to say the subroutine has already been called
