@@ -5,12 +5,13 @@
 SUBROUTINE poisson_nernst_planck
 
   USE precision_kinds, ONLY: dp
-  USE system, ONLY: D_equil, tot_sol_charge, time, elec_slope, lncb_slope, node, c_plus, c_minus, supercell, phi, & ! ADE: I added phi, c_plus and c_minus
+  USE system, ONLY: D_equil, tot_sol_charge, time, elec_slope, lncb_slope, node, c_plus, c_minus, supercell, phi, & 
                     fluid, bjl, lambda_D, solid, LaplacianOfPhi, el_curr_x, el_curr_y, el_curr_z
   use module_input, only: getinput
   USE io, ONLY: print_everything_related_to_charge_equil
   use constants, only: x,y,z, pi
   use myallocations
+  use module_convergence
 
 
   IMPLICIT NONE
@@ -21,6 +22,7 @@ SUBROUTINE poisson_nernst_planck
   !real(dp), allocatable, dimension(:,:,:) :: phiTMP ! Ade
   real(dp) :: target_error_charge, max_error
   real(dp) :: SF, Alpha, FACT1, FACT2, FLAT, Somma1, Somma2, Somma3, Somma4, Somma5, Somma6
+  integer :: print_freq
   character(len=200) :: ifile
 
   open(314, file='output/c_plus_alongZ.dat')
@@ -36,13 +38,16 @@ SUBROUTINE poisson_nernst_planck
   PRINT*,'Poisson + Nernst-Planck'
   PRINT*,'======================='
 
-  ! read the number of iterations one does for the first step of equilibration (D_iter)
+  ! read the number of iterations one does for the first step of equilibration (D_equil)
   CALL get_timestepmax( timestepmax )
   D_equil = timestepmax ! Ade: 30/03/2017 D_equil was never given a value. Thus it was always
                         ! equal to zero. This explains why the profiles would never iterate. 
 
+  !
+  ! BR: We should probably get rid of D_equil, not so useful anymore
+  !
   IF (D_equil<0) STOP "D_equil in input file should be >= 0"
-  print*, 'D_equil = ', D_equil
+  !print*, 'D_equil = ', D_equil
 
 
   ! Ade: modification 5/04/2018
@@ -55,7 +60,7 @@ SUBROUTINE poisson_nernst_planck
   elec_slope = getinput%dp3("elec_slope")
   
   ! BR: added target for convergence of charge distribution
-  target_error_charge = getinput%dp('target_error_charge',1.D-12)
+  target_error_charge = target_error%target_error_charge
 
   ! Ade : modification 20/03/2017
   lx = supercell%geometry%dimensions%indiceMax(x)
@@ -138,6 +143,7 @@ SUBROUTINE poisson_nernst_planck
   ! iterate until charges are equilibrated
   ! Ade : modifications on 23/03/2017
   time = 0
+  print_freq = 1
   DO WHILE ((.NOT. is_converged) .AND. (time<=timestepmax))
 
       CALL backup_phi_c_plus_c_minus  ! backup potential and solute concentrations from last step
@@ -153,6 +159,16 @@ SUBROUTINE poisson_nernst_planck
       END IF
 
       time = time + 1
+
+      ! inform of current state with regular outputs 
+      if( modulo(time, print_freq) == 0) then
+            if( time==10    )   print_freq = 10
+            if( time==100   )   print_freq = 100
+            if( time==1000  )   print_freq = 1000
+
+            WRITE(*,"(4X,I8,A,E12.6,A,E12.6,A)") time, " crit. on charge ", max_error, " ( target ", target_error_charge, " )"
+        end if
+
 
   END DO
   ! end of main loop to converge towards Poisson-Boltzmann equilibrium
@@ -190,7 +206,7 @@ SUBROUTINE poisson_nernst_planck
   call print_everything_related_to_charge_equil
 
   IF (is_converged) THEN
-      PRINT*,'Convergence found at step ',time,' after',time,' steps'
+      PRINT*,'PNP converged after',time,' steps'
   ELSE
       STOP 'Poisson-Nernst-Planck did not converge to Poisson-Boltzmann equilibrium'
   END IF

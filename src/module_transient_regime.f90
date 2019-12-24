@@ -397,15 +397,31 @@ module module_transient_regime
 
         ! First, we reach convergence without external forces.
         ! Then, we turn on the external forces and iterate again until convergence
+        !
         if(mass_flux_convergence_IsReached) then
 
-            ! was it converged with or without the external forces ?
+            ! If this was only without the external force, now we apply it
             if( .not.mass_flux_convergence_IsReached_without_fext ) then
                 mass_flux_convergence_IsReached_without_fext = .true.
                 mass_flux_convergence_IsReached = .false.
+                print*,'Mass flux convergence reached without fext after ',t,' steps... Now applying it'
 
+       !############################################
+       !# Apply external force if it wasn't already there
+       !############################################
+                tfext=t+1
+                call apply_external_forces( fextx, fexty, fextz, nature)
+
+            ! If we now also have converged with the external force
             else if( mass_flux_convergence_IsReached_without_fext ) then
                 mass_flux_convergence_IsReached_with_fext = .true.
+
+                ! We also check whether convergence has also been reached for
+                !   electrostatic potential and ionic concentrations
+                ! If yes, then we are done and we can exit the loop over time steps
+                !
+                if ( charge_convergence_IsReached .and. t>2 ) exit
+
             end if
 
         end if
@@ -415,20 +431,20 @@ module module_transient_regime
         !############################################
         !# Apply external force
         !############################################
-        if( mass_flux_convergence_IsReached ) then
+        !if( mass_flux_convergence_IsReached ) then
 
-            ! if you are already converged without then with f_ext then exit time loop. Stationary state is found.
-            if( mass_flux_convergence_IsReached_without_fext .and. mass_flux_convergence_IsReached_with_fext .and. t>2) then
-                if( charge_convergence_IsReached ) exit    ! we are done: exit loop over time steps
+        !    ! if you are already converged without then with f_ext then exit time loop. Stationary state is found.
+        !    if( mass_flux_convergence_IsReached_without_fext .and. mass_flux_convergence_IsReached_with_fext .and. t>2) then
+        !        if( charge_convergence_IsReached ) exit    ! we are done: exit loop over time steps
 
-            ! if you have already converged without fext, but not yet with fext, then enable fext
-            else if(mass_flux_convergence_IsReached_without_fext .and. .not.mass_flux_convergence_IsReached_with_fext) then
-                tfext=t+1
-                call apply_external_forces( fextx, fexty, fextz, nature)
+        !    ! if you have already converged without fext, but not yet with fext, then enable fext
+        !    else if(mass_flux_convergence_IsReached_without_fext .and. .not.mass_flux_convergence_IsReached_with_fext) then
+        !        tfext=t+1
+        !        call apply_external_forces( fextx, fexty, fextz, nature)
+        !        print*,'Applying external force: ', fextx, fexty, fextz
+        !    end if  
 
-            end if  
-
-        end if 
+        !end if 
 
 
 

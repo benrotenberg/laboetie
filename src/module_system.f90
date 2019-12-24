@@ -65,7 +65,7 @@ module system
 !    real(dp), allocatable, dimension(:,:,:) :: jx, jy, jz ! jx(i,j,k) = sum_l c_x(l) * n(i,j,k,l)    where c_x(l) = c(1,l)
 
     real(dp), allocatable, dimension(:,:,:) :: flux_site_plus, flux_site_minus
-    real(dp) :: anormf0
+    !real(dp) :: anormf0
     real(dp), parameter :: A_zero = 1.0_dp + 2.0_dp*(2.0_dp)**(0.5) ! Factor due to geometry of the system. Works for D3Q19. Needed in smolu and just_eq_smolu
     
     ! electrostatic related

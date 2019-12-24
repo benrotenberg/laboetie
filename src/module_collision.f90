@@ -15,7 +15,7 @@ contains
 
 !!!!!!!!!!!!!!!!!!!!
 
-  subroutine collide(n, density, jx, jy, jz, F1, F2, F3) !f_ext_x, f_ext_y, f_ext_z) Ade: for consistency puroposes, I swapped old variable names
+  subroutine collide(n, density, jx, jy, jz, F1, F2, F3) !f_ext_x, f_ext_y, f_ext_z) Ade: for consistency purposes, I swapped old variable names
                                                          ! with new ones
     use system, only: fluid, solid, node
     use mod_lbmodel, only: lbm

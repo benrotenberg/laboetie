@@ -4,13 +4,12 @@ subroutine charges_init
 
     use precision_kinds, only: i2b, dp
     use system, only: lambda_D, c_plus, c_minus, phi, charge_distrib, tot_sol_charge, node,&
-                       fluid, solid, anormf0, bjl, kBT, rho_0, D_plus, D_minus, supercell, A_zero
+                       fluid, solid, bjl, kBT, rho_0, D_plus, D_minus, supercell, A_zero 
     use constants, only: x, y, z
     use module_input, only: getinput
     use myallocations
 
     implicit none
-    real(dp), allocatable, dimension(:,:,:) :: c_plusT, c_minusT
     integer  :: count_solid, count_fluid, count_solid_int, MyGeometry, i,j,k, lx, ly, lz, ENNE,&
                 capacitor, m, slit_sol, LB1, UB1, LB2, UB2, LW, UW, width1, width2, InnerRadius, OuterRadius
     real(dp) :: tot_sol_charge_solid, tot_sol_charge_fluid, SF, PrefactLP1, PrefactLP2, PrefactLP3, Alpha
@@ -21,10 +20,7 @@ subroutine charges_init
     integer :: Constant_Potential
     real(dp), parameter :: pi = acos(-1._dp)
 
-     open(279, file='output/c_plus_alongZCHARGESINIT.dat')
-     open(277, file='output/c_at_wall1.dat')
-     open(276, file='output/c_at_wall2.dat')
-
+    !open(279, file='output/c_ions_from_charges_init.dat')
 
     !
     ! Is there any charge into the solute ?
@@ -54,19 +50,10 @@ subroutine charges_init
     count_solid = count(node%nature==solid)
     count_solid_int = count( node%nature == solid .and. node%isInterfacial )
     count_fluid = count(node%nature==fluid)
-    WRITE(277,*) 'interfacial and solid nodes ', count_solid_int
-    WRITE(277,*) 'solid nodes ', count_solid
-    WRITE(277,*) 'fluid nodes ', count_fluid
 
     ! read where are distributed the charges
     ! call read_charge_distrib
 
-    if (.not. allocated(c_plusT)) call allocateReal3D(c_plusT)
-    c_plusT = 0._dp
-    if (.not. allocated(c_minusT)) call allocateReal3D(c_minusT)
-    c_minusT = 0._dp
-
-    print*, 'Constant_Potential = ', Constant_Potential
     !Constant_Potential = getinput%log("Constant_Potential", .FALSE.)
     Constant_Potential = getinput%int("Constant_Potential", 0) ! Ade : 1=true, 0=false
     print*, 'Constant_Potential = ', Constant_Potential
@@ -181,27 +168,27 @@ subroutine charges_init
     m = getinput%int("SolidSheetsEachSideOfSlit", defaultvalue=1, assert=">0")
     
     if(abs(tot_sol_charge)>epsilon(1._dp)) then
+
       if(charge_distrib(1:3)=='int') then
-        print*,'The total charge is set ONLY on the solid nodes at the interface (',count_solid_int,'/',count_solid,')'
-        print*,'Internal sites (at the interface) = ',count_solid_int,', charge per link =',tot_sol_charge_solid
-        print*,'External sites = ',count_fluid,' charge per link =',tot_sol_charge_fluid
+        print*,'The total charge is set ONLY on the solid nodes at the interface'
+        print*,' # of interfacial solid sites = ', count_solid_int, ' (charge per node =',tot_sol_charge_solid,')'
+        print*,' # of fluid sites             = ', count_fluid,     ' (charge per node =',tot_sol_charge_fluid,')'
       else if(charge_distrib(1:3)=='sol') then
-        print*,'Internal sites =',count_solid,' charge per link =',tot_sol_charge_solid
-        print*,'External sites =',count_fluid,' charge per link =',tot_sol_charge_fluid
+        print*,' # of interfacial solid sites = ',count_solid,' (charge per node =',tot_sol_charge_solid,')'
+        print*,' # of fluid sites             = ',count_fluid,' (charge per node =',tot_sol_charge_fluid,')'
         stop 'only surface charge is implemented for now in charge_init.f90'
       else
         stop 'pb in charges_init.f90'
       end if
 
       print*,'Salt concentration ',0.5*rho_0
-      print*,'Init density values :'
-      print*,'p_solid =',in_c_plus_solid
-      print*,'p_fluid =',in_c_plus_fluid
-      print*,'m_solid =',in_c_minus_solid
-      print*,'m_fluid =',in_c_minus_fluid
+      print*,'Initial density values:'
+      print*,'  p_solid =',in_c_plus_solid
+      print*,'  p_fluid =',in_c_plus_fluid
+      print*,'  m_solid =',in_c_minus_solid
+      print*,'  m_fluid =',in_c_minus_fluid
       print*,'*********************************************************************'
 
-      !print*,'ATTENTION ONLY SURFACE CHARGE IS OK FOR NOW'
     end if
 
     where(node%nature==solid .and. node%isInterfacial )
@@ -282,28 +269,11 @@ subroutine charges_init
     end if
 
     
-    anormf0 = 4.0_dp*pi*bjl*kBT/2.0_dp *sum(abs(c_plus)+abs(c_minus))
-
-    DO k=supercell%geometry%dimensions%indiceMin(z), supercell%geometry%dimensions%indiceMax(z)
-        WRITE(279,*) k, SUM(c_plus(:,:,k))/(lx*ly), SUM(c_minus(:,:,k))/(lx*ly),&
-                    c_plus(:,:,k), c_plusT(:,:,k), c_minus(:,:,k), c_minusT(:,:,k)
-        if(k==1) then
-          write(277,*) k, SUM(c_plus(:,:,k))
-        else if (k==lz) then
-          write(276,*) k, SUM(c_plus(:,:,k))
-        else if (k==2) then
-          write(277,*) k, SUM(c_plus(:,:,k))
-        else if (k==lz-1) then
-          write(276,*) k, SUM(c_plus(:,:,k))
-        end if 
-    ENDDO
-    DO j=supercell%geometry%dimensions%indiceMin(y), supercell%geometry%dimensions%indiceMax(y)
-        write(277,*) '--------------------------------------------------'
-        write(277,*) j, c_plus(:,j,1)
-    ENDDO
-    close(279)
-    close(277)
-    close(276)
+    !DO k=supercell%geometry%dimensions%indiceMin(z), supercell%geometry%dimensions%indiceMax(z)
+    !    WRITE(279,*) k, SUM(c_plus(:,:,k))/(lx*ly), SUM(c_minus(:,:,k))/(lx*ly),&
+    !                c_plus(:,:,k), c_minus(:,:,k)
+    !ENDDO
+    !close(279)
 
 
     ! read diffusion coefficients of solute + and solute -
