@@ -119,18 +119,11 @@ I would recommand to use 2 or 4 threads only.
 * `tmom` number of steps for equilibrating the flux without constraints
 * `tmax` between tmom and tmax, moment propagation is done
 * `geometryLabel`
-                  # 0 for a custom cell (written in geom.in)
-                  # 1 for a slit, i.e. two walls at z=zmin and z=zmax
-                  # 2 for a cylinder along Z. lx have to be equal to ly.
-                  # 3 for a body centered cubic cell with solid spheres in contact
-                  # 4 for disc benichou with exists at 0, 3, 6 and 9 oclock
-                  # 5 for corrugated wall (sinusoidal and mirored wrt to y=ly/2.
-                  # 6 for a slit with various diameter (2D)
-                  # 7 for a tube with various diameter (3D)
-                  # 8 for a spherical cavity (3D)
-                  # 9 for sphere with 6 exits as asked by benichou
-                  # 10 for the supercell given by Xudong, Vincent, Marie and Benjamin from COMSOL
-* `stripes` ?
+                  #0 for a custom cell (written in geom.in)
+                  #1 for a slit, i.e. two walls at z=zmin and z=zmax
+                  #2 for a cylinder along Z. lx have to be equal to ly.
+                  #3 for a body centered cubic cell with solid spheres in contact
+                  # Other options are possible, check source code (supercell_definition.f90) 
 * `initialSolventDensity` fluid density in LB units
 * `f_ext` external force
 * `charge_distrib` sol) charge distributed in the whole solid. int) charge distributed on interfacial nodes only
