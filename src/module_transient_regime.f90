@@ -11,7 +11,7 @@ module module_transient_regime
 
     USE precision_kinds, only: dp
     USE system, only: fluid, supercell, node, lbm, n, pbc, solute_force, phi, c_plus, c_minus, LaplacianOfPhi, &
-                      el_curr_x, el_curr_y, el_curr_z, t, ion_curr_x, ion_curr_y, ion_curr_z, elec_slope !, cations_NEcurr, anions_NEcurr
+                      el_curr_x, el_curr_y, el_curr_z, t, ion_curr_x, ion_curr_y, ion_curr_z, elec_slope 
     use module_convergence
     use module_collision, only: collide
     use module_input, only: getinput, verbose
@@ -212,9 +212,6 @@ module module_transient_regime
         FixedPotentialDOWN = getinput%dp('FixedPotentialDOWN',0._dp)
 
     end if
-
-    !cations_NEcurr = 0._dp
-    !anions_NEcurr = 0._dp
 
     !
     ! Main temporal loop

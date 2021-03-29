@@ -19,14 +19,11 @@ SUBROUTINE poisson_nernst_planck
   INTEGER :: timestep, timestepmax, i, j, k, MyGeometry, lx, ly, lz, capacitor,&
              slit_sol, m, ENNE
   LOGICAL :: is_converged = .FALSE.
-  !real(dp), allocatable, dimension(:,:,:) :: phiTMP ! Ade
   real(dp) :: target_error_charge, max_error
   real(dp) :: SF, Alpha, FACT1, FACT2, FLAT, Somma1, Somma2, Somma3, Somma4, Somma5, Somma6
   integer :: print_freq
   character(len=200) :: ifile
 
-  !open(314, file='output/c_plus_alongZ.dat')
-  !open(315, file='output/c_minus_alongZ.dat')
 
   ! If tot_sol_charge is 0, neutral system, and thus no need to go continue here
   tot_sol_charge = getinput%dp('tot_sol_charge',0._dp)
@@ -66,7 +63,6 @@ SUBROUTINE poisson_nernst_planck
   lz = supercell%geometry%dimensions%indiceMax(z)
   MyGeometry = getinput%int('geometryLabel',-1)
   
-  !IF( .NOT. ALLOCATED(phiTMP) ) CALL allocateReal3D(phiTMP)
   IF( .NOT. ALLOCATED(phi) ) CALL allocateReal3D(phi)
 
 
@@ -94,7 +90,6 @@ SUBROUTINE poisson_nernst_planck
                 do j = 1, ly  
                   do k = m+1, lz-m ! first and last nodes are solid
                     ! Ade : below is the analytical solution for the potential (called phi) for a slit geometry.
-                    !phiTMP(i,j,k) = 2.0*log(cos(Alpha*(k-SF))/(cos(Alpha*(real(ENNE)*0.5)) ))
                     phi(i,j,k) = 2.0*log( cos(Alpha*(k-SF)) / cos(Alpha*(real(ENNE)*0.5)) )
                   end do
                 end do
@@ -106,14 +101,12 @@ SUBROUTINE poisson_nernst_planck
             do i = 1, lx      
                 do j = 1, ly  
                   do k = m+1, lz-m ! first and last node are solid
-                        !phiTMP(i,j,k) = FACT1 * cosh( (k-SF)/lambda_D )/( FACT2 )
                     phi(i,j,k) = FACT1 * cosh( (k-SF)/lambda_D )/( FACT2 )
                   end do
                 end do
             end do
             FLAT =  FACT1 * cosh( (m-SF)/lambda_D )/( FACT2 )
         endif
-        !phi = phiTMP 
         where(node%nature==solid)
             phi = FLAT
         end where
@@ -207,8 +200,6 @@ SUBROUTINE poisson_nernst_planck
       STOP 'Poisson-Nernst-Planck did not converge to Poisson-Boltzmann equilibrium'
   END IF
 
-  !close(314)
-  !close(315)
 
 
   !#########################################################################

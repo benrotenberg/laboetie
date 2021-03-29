@@ -32,7 +32,7 @@ PROGRAM main
 
   !
   ! Here we solve the PNP equations without flow / external perturbation,
-  ! i.e., the solvent does not move. This shoudl converge toward the Poisson-Boltzmann distribution.
+  ! i.e., the solvent does not move. This should converge toward the Poisson-Boltzmann distribution.
   !    The Poisson equation is solved by the Successive Over Relaxation (SOR) method.
   !    For the Nernst-Planck equations (diffusion/migration of ions), we use Link-Flux without advection.
   !

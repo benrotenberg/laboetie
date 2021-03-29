@@ -51,7 +51,7 @@ We are researchers: our work is evaluated on the basis of citations to our publi
 
 The prefered way is to use CMake.  If you have CMake on your computer, then: 
 ```sh
-git clone https://github.com/maxlevesque/laboetie
+git clone https://github.com/benrotenberg/laboetie
 cd laboetie
 mkdir build
 cd build
@@ -61,7 +61,7 @@ make -j
 
 If you don't have CMake:
 ```sh
-git clone https://github.com/maxlevesque/laboetie
+git clone https://github.com/benrotenberg/laboetie
 cd laboetie
 make -j
 ```

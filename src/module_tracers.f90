@@ -1,11 +1,16 @@
-! Here tracers are droped in the fluid. They may be charged or not. They evolve in the
+! Here tracers are dropped in the fluid. They may be charged or not. They evolve in the
 ! equilibrated fluid and its solutes. They do not change the potential even if they
 ! have a charge. The idea is to follow them in order to get the velocity auto correlation
 ! function, while making them not to change the equilibrium properties of the system.
 module module_tracers
-    implicit none
-contains
-SUBROUTINE drop_tracers( solventCurrentx, solventCurrenty, solventCurrentz)
+  implicit none
+  contains
+
+  !
+  ! This performs the Moment Propagation
+  !     by calling routines in module moment_propagation
+  ! 
+  SUBROUTINE drop_tracers( solventCurrentx, solventCurrenty, solventCurrentz)
 
     use precision_kinds, only: dp
     USE system, only: n, elec_slope
@@ -31,7 +36,7 @@ SUBROUTINE drop_tracers( solventCurrentx, solventCurrenty, solventCurrentz)
     allocate( solventDensity(size(n,1),size(n,2),size(n,3)) , source=sum(n,4) )
     print*, 'STEP1'
 
-    CALL update_tracer_population( solventDensity, solventCurrentx, solventCurrenty, solventCurrentz) ! include elec_slope in population n
+    CALL update_tracer_population( solventDensity, solventCurrentx, solventCurrenty, solventCurrentz ) ! include elec_slope in population n
     PRINT*, 'STEP2'
     elec_slope = 0.0_dp ! turn the electric field off for the rest of mom_prop (included in n)
 
@@ -63,16 +68,18 @@ SUBROUTINE drop_tracers( solventCurrentx, solventCurrenty, solventCurrentz)
     !  CALL print_vacf ! print vacf to file vacf.dat
     CALL deallocate_propagated_quantity
 
-contains
+!contains
+  end SUBROUTINE drop_tracers
 
 
   !
+  ! Modify populations to account for external force and electric field
+  !     this latter contribution depends on the tracer charge
   !
-  !
-  SUBROUTINE update_tracer_population( solventDensity, solventCurrentx, solventCurrenty, solventCurrentz)
+  SUBROUTINE update_tracer_population( solventDensity, solventCurrentx, solventCurrenty, solventCurrentz )
 
     use precision_kinds, only: dp, i2b
-    use system, only: f_ext, fluid, elec_slope, supercell, lbm, x, y, z, node
+    use system, only: f_ext, fluid, elec_slope, supercell, lbm, x, y, z, node, n
     use module_collision, only: check_population
     use module_input, only: input_dp, input_dp3
 
@@ -107,7 +114,7 @@ contains
     do concurrent (l=ll:lu, i=1:lx, j=1:ly, k=1:lz)
       if( node(i,j,k)%nature==fluid ) then
         n(l,i,j,k) = lbm%vel(l)%a0 *solventdensity(i,j,k) + lbm%vel(l)%a1 &
-          *sum( lbm%vel(l)%coo(:)*([solventCurrentx(i,j,k), solventCurrenty(i,j,k), solventCurrentz(i,j,k)] + f_ext(:) -solventDensity(i,j,k)*tr%q*tr%D*elec_slope(:) ) ) 
+          *sum( lbm%vel(l)%coo(:)*( [solventCurrentx(i,j,k), solventCurrenty(i,j,k), solventCurrentz(i,j,k)] + f_ext(:) - solventDensity(i,j,k)*tr%q*tr%D*elec_slope(:) ) ) 
       else
         n(l,i,j,k) = lbm%vel(l)%a0 *solventdensity(i,j,k) + lbm%vel(l)%a1 &
           *( lbm%vel(l)%coo(x)*solventCurrentx(i,j,k) + lbm%vel(l)%coo(y)*solventCurrenty(i,j,k) + lbm%vel(l)%coo(z)*solventCurrentz(i,j,k) )
@@ -132,5 +139,4 @@ contains
 
   end SUBROUTINE update_tracer_population
 
-end SUBROUTINE drop_tracers
 end module module_tracers
