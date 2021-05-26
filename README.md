@@ -2,7 +2,7 @@
 
 ---
 
-laboetie is the fluid dynamics code for chemical applications.  
+laboetie is a fluid dynamics code for chemical applications.  
 It is based on the Lattice-Boltzmann algorithm to solve fluid dynamics equations.  
 [more to come]
 
