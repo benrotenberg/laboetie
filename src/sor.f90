@@ -46,8 +46,8 @@ subroutine sor
     factor = 4.0_dp*pi*bjl*kbt/2.0_dp
 
     ! Solving the Poisson equation Laplacian(beta*e*psi) = Laplacian(phi) = - (c_plus-c_minus) * e^2/(epsilon_0*epsilon_r)
-    !     is equivalent to solving (2/(c^2*dt^2)*sum_i w_i[psi(r+ci*dt)-psi(r)] = - [cplus(r)-cminus(r)] * 4*pi*bjl
-    !     ie PoissonDiff = sum_i w_i[psi(r+ci*dt)-psi(r)] + factor*[cplus(r)-cminus(r)] = 0
+    !     is equivalent to solving (2/(c^2*dt^2)*sum_i w_i*[phi(r+ci*dt)-phi(r)] = - [cplus(r)-cminus(r)] * 4*pi*bjl
+    !     ie PoissonDiff = sum_i w_i[phi(r+ci*dt)-phi(r)] + factor*[cplus(r)-cminus(r)] = 0
     !     this is achieved iteratively with SOR
     !
     ! In the presence of metallic walls, we introduce slight modifications, see Asta et al. JCP 151, 114104 (2019)
