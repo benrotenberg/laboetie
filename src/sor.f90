@@ -23,7 +23,7 @@ subroutine sor
     integer :: pmin, qmin, rmin, timeTMP, n1
     integer :: ipass,isw,jsw,ksw 
     integer :: isw2,jsw2,ksw2
-    real(dp) :: phistar, phiold
+    real(dp) :: phiold, PoissonDiff, LaplOfPhi
     real(dp), dimension(:,:,:), allocatable :: phitmp, phiR, phi_old
     real(dp), parameter :: zerodp = 0._dp
 
@@ -45,6 +45,15 @@ subroutine sor
     ! BR: corresponds to (4*pi*bjl)*(cs^2 /2) in Eq (17) of PRE64, 061507) ok for cs^2 = 1/2 for D3Q18 only
     factor = 4.0_dp*pi*bjl*kbt/2.0_dp
 
+    ! Solving the Poisson equation Laplacian(beta*e*psi) = Laplacian(phi) = - (c_plus-c_minus) * e^2/(epsilon_0*epsilon_r)
+    !     is equivalent to solving (2/(c^2*dt^2)*sum_i w_i[psi(r+ci*dt)-psi(r)] = - [cplus(r)-cminus(r)] * 4*pi*bjl
+    !     ie PoissonDiff = sum_i w_i[psi(r+ci*dt)-psi(r)] + factor*[cplus(r)-cminus(r)] = 0
+    !     this is achieved iteratively with SOR
+    !
+    ! In the presence of metallic walls, we introduce slight modifications, see Asta et al. JCP 151, 114104 (2019)
+    !     phi is not updated on nodes where the potential is imposed
+    !     the contribution of interfacial links is modified to improve accuracy (location of the interface between nodes)
+    !     the charge induced on the metallic nodes is computed from the Poisson equation (see LaplacianOfPhi)
 
     convergenceloop: do iter=1, maxiterations 
 
@@ -63,16 +72,20 @@ subroutine sor
                         cycle ! don't use SOR on nodes where you impose the potential
                     else 
                         phitmp(i,j,k) = 0.0_dp
-                        phistar = 0.0_dp
+                        PoissonDiff = 0.0_dp
                         phiold = phi(i,j,k)                     ! Ade : used to compute the Laplacian of Phi
                         do l= lbm%lmin, lbm%lmax 
                             pmin = pbc(i-lbm%vel(l)%coo(x),x)  
                             qmin = pbc(j-lbm%vel(l)%coo(y),y)  
                             rmin = pbc(k-lbm%vel(l)%coo(z),z)
-                            phistar = phistar + lbm%vel(l)%a0 * phi(pmin,qmin,rmin)   
+                            if( node(pmin,qmin,rmin)%isFixedPotential ) then
+                                 PoissonDiff = PoissonDiff + lbm%vel(l)%a0 * (phi(pmin,qmin,rmin)-phiold)*2
+                            else 
+                                 PoissonDiff = PoissonDiff + lbm%vel(l)%a0 * (phi(pmin,qmin,rmin)-phiold)
+                            endif 
                         end do
-                        phistar = phistar + factor*(c_plus(i,j,k)-c_minus(i,j,k)) ! see PRE64, Horbach: Eq. 17
-                        phitmp(i,j,k) = omega*phistar +(1.0_dp-omega)*phiold
+                        PoissonDiff = PoissonDiff + factor*(c_plus(i,j,k)-c_minus(i,j,k)) ! see PRE64, Horbach: Eq. 17
+                        phitmp(i,j,k) = phiold + omega*PoissonDiff
                     endif
                 end do
             end do
@@ -112,14 +125,19 @@ subroutine sor
     do k = kmin, kmax
         do j = jmin, jmax
             do i = imin, imax
-                phistar = 0.0_dp
+                LaplOfPhi = 0.0_dp
                 do l= lbm%lmin, lbm%lmax               
                     pmin = pbc(i-lbm%vel(l)%coo(x),x) 
                     qmin = pbc(j-lbm%vel(l)%coo(y),y) 
                     rmin = pbc(k-lbm%vel(l)%coo(z),z)
-                    phistar = phistar + lbm%vel(l)%a0 * phi(pmin,qmin,rmin)   
+                    LaplOfPhi = LaplOfPhi + lbm%vel(l)%a0 * phi(pmin,qmin,rmin)   
+                    if( .not. node(pmin,qmin,rmin)%isFixedPotential ) then
+                        LaplOfPhi = LaplOfPhi + lbm%vel(l)%a0 * (phi(pmin,qmin,rmin)-phiold)*2
+                    else 
+                        LaplOfPhi = LaplOfPhi + lbm%vel(l)%a0 * (phi(pmin,qmin,rmin)-phiold)
+                    endif 
                 end do
-                LaplacianOfPhi(i,j,k) = -(phistar-phi(i,j,k))/factor
+                LaplacianOfPhi(i,j,k) = -LaplOfPhi/factor   ! this is in fact the charge on the node
             end do
         end do
     end do
