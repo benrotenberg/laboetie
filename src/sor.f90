@@ -20,9 +20,7 @@ subroutine sor
     real(dp) :: dphi 
     integer :: iter ! number of iterations to achieve the tolerance
     integer :: i, j, k, l, imin, jmin, kmin, imax, jmax, kmax, Constant_Potential
-    integer :: pmin, qmin, rmin, timeTMP, n1
-    integer :: ipass,isw,jsw,ksw 
-    integer :: isw2,jsw2,ksw2
+    integer :: pmin, qmin, rmin, n1
     real(dp) :: phiold, PoissonDiff, LaplOfPhi
     real(dp), dimension(:,:,:), allocatable :: phitmp, phiR, phi_old
     real(dp), parameter :: zerodp = 0._dp
@@ -48,17 +46,15 @@ subroutine sor
     ! Solving the Poisson equation Laplacian(beta*e*psi) = Laplacian(phi) = - (c_plus-c_minus) * e^2/(epsilon_0*epsilon_r)
     !     is equivalent to solving (2/(c^2*dt^2)*sum_i w_i*[phi(r+ci*dt)-phi(r)] = - [cplus(r)-cminus(r)] * 4*pi*bjl
     !     ie PoissonDiff = sum_i w_i[phi(r+ci*dt)-phi(r)] + factor*[cplus(r)-cminus(r)] = 0
-    !     this is achieved iteratively with SOR
+    !     this is achieved iteratively with SOR --  see also Asta et al. JCP 151, 114104 (2019), Eq. 13
     !
     ! In the presence of metallic walls, we introduce slight modifications, see Asta et al. JCP 151, 114104 (2019)
     !     phi is not updated on nodes where the potential is imposed
-    !     the contribution of interfacial links is modified to improve accuracy (location of the interface between nodes)
-    !     the charge induced on the metallic nodes is computed from the Poisson equation (see LaplacianOfPhi)
+    !     the contribution of interfacial links is modified to improve accuracy (location of the interface between nodes), see Eq. 15
+    !     the charge induced on the metallic nodes is computed from the Poisson equation (see LaplacianOfPhi), see Eq. 16
 
     convergenceloop: do iter=1, maxiterations 
 
-        ksw = 0
-        ksw2 = 0
         imin = supercell%geometry%dimensions%indiceMin(x)
         imax = supercell%geometry%dimensions%indiceMax(x)
         jmin = supercell%geometry%dimensions%indiceMin(y)
@@ -73,24 +69,24 @@ subroutine sor
                     else 
                         phitmp(i,j,k) = 0.0_dp
                         PoissonDiff = 0.0_dp
-                        phiold = phi(i,j,k)                     ! Ade : used to compute the Laplacian of Phi
+                        phiold = phi(i,j,k)                     
                         do l= lbm%lmin, lbm%lmax 
                             pmin = pbc(i-lbm%vel(l)%coo(x),x)  
                             qmin = pbc(j-lbm%vel(l)%coo(y),y)  
                             rmin = pbc(k-lbm%vel(l)%coo(z),z)
-                            if( node(pmin,qmin,rmin)%isFixedPotential ) then
+                            if( node(pmin,qmin,rmin)%isFixedPotential ) then ! interfacial link, see Asta JCP19 Eq. 15
                                  PoissonDiff = PoissonDiff + lbm%vel(l)%a0 * (phi(pmin,qmin,rmin)-phiold)*2
-                            else 
+                            else ! other links 
                                  PoissonDiff = PoissonDiff + lbm%vel(l)%a0 * (phi(pmin,qmin,rmin)-phiold)
                             endif 
                         end do
-                        PoissonDiff = PoissonDiff + factor*(c_plus(i,j,k)-c_minus(i,j,k)) ! see PRE64, Horbach: Eq. 17
-                        phitmp(i,j,k) = phiold + omega*PoissonDiff
+                        PoissonDiff = PoissonDiff + factor*(c_plus(i,j,k)-c_minus(i,j,k)) 
+                        phitmp(i,j,k) = phiold + omega*PoissonDiff                        ! see Asta JCP19 Eq. 13     
                     endif
                 end do
             end do
-         end do
-         where( .not. node%isFixedPotential ) phi = phitmp
+        end do
+        where( .not. node%isFixedPotential ) phi = phitmp
 
         ! dphi is the difference between the electric potential between the beginning and end of the iteration.
         dphi = 0.0_dp 
@@ -125,19 +121,23 @@ subroutine sor
     do k = kmin, kmax
         do j = jmin, jmax
             do i = imin, imax
-                LaplOfPhi = 0.0_dp
-                do l= lbm%lmin, lbm%lmax               
-                    pmin = pbc(i-lbm%vel(l)%coo(x),x) 
-                    qmin = pbc(j-lbm%vel(l)%coo(y),y) 
-                    rmin = pbc(k-lbm%vel(l)%coo(z),z)
-                    LaplOfPhi = LaplOfPhi + lbm%vel(l)%a0 * phi(pmin,qmin,rmin)   
-                    if( .not. node(pmin,qmin,rmin)%isFixedPotential ) then
-                        LaplOfPhi = LaplOfPhi + lbm%vel(l)%a0 * (phi(pmin,qmin,rmin)-phiold)*2
-                    else 
-                        LaplOfPhi = LaplOfPhi + lbm%vel(l)%a0 * (phi(pmin,qmin,rmin)-phiold)
-                    endif 
-                end do
-                LaplacianOfPhi(i,j,k) = -LaplOfPhi/factor   ! this is in fact the charge on the node
+                if( .not. node(i,j,k)%isFixedPotential ) then
+                        cycle ! only compute the induced charge where the potential is fixed
+                else 
+                   LaplOfPhi = 0.0_dp
+                   phiold = phi(i,j,k)
+                   do l= lbm%lmin, lbm%lmax               
+                       pmin = pbc(i-lbm%vel(l)%coo(x),x) 
+                       qmin = pbc(j-lbm%vel(l)%coo(y),y) 
+                       rmin = pbc(k-lbm%vel(l)%coo(z),z)
+                       if( .not. node(pmin,qmin,rmin)%isFixedPotential ) then ! interfacial link, see Asta JCP19, Eq. 15
+                           LaplOfPhi = LaplOfPhi + lbm%vel(l)%a0 * (phi(pmin,qmin,rmin)-phiold)*2
+                       else ! other links
+                           LaplOfPhi = LaplOfPhi + lbm%vel(l)%a0 * (phi(pmin,qmin,rmin)-phiold)
+                       endif 
+                   end do
+                   LaplacianOfPhi(i,j,k) = -LaplOfPhi/factor   ! this is in fact the charge on the node, see Asta JCP19, Eq. 16
+                endif
             end do
         end do
     end do
